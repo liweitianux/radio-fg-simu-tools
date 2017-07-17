@@ -1,6 +1,9 @@
 # .gitignore
-# 
 
 *~
 *.swp
 
+build/
+
+*.pyc
+**/__pycache__
