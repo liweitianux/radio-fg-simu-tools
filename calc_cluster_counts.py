@@ -30,6 +30,7 @@ volume with dimension [Mpc^3]/[unit redshift]/[sr]
 """
 
 
+import os
 import sys
 import argparse
 
@@ -111,7 +112,80 @@ def calc_cluster_counts(numgrid, masses, Mmin, coverage):
     """
     midx = masses >= Mmin
     counts = np.sum(numgrid[:, midx]) * coverage
-    return counts
+    return int(counts)
+
+
+def bilinear_interpolation(x, y, points):
+    """
+    Interpolate (x,y) from values associated with four points.
+
+    The four points are a list of four triplets:  (x, y, value).
+    The four points can be in any order.  They should form a rectangle.
+
+    >>> bilinear_interpolation(12, 5.5,
+    ...                        [(10, 4, 100),
+    ...                         (20, 4, 200),
+    ...                         (10, 6, 150),
+    ...                         (20, 6, 300)])
+    165.0
+
+    Credit:
+    [1] http://en.wikipedia.org/wiki/Bilinear_interpolation
+    [2] https://stackoverflow.com/a/8662355/4856091
+    """
+    # order points by x, then by y
+    points = sorted(points)
+    (x1, y1, q11), (_x1, y2, q12), (x2, _y1, q21), (_x2, _y2, q22) = points
+
+    if x1 != _x1 or x2 != _x2 or y1 != _y1 or y2 != _y2:
+        raise ValueError("points do not form a rectangle")
+    if not x1 <= x <= x2 or not y1 <= y <= y2:
+        raise ValueError("(x, y) not within the rectangle")
+    return (q11 * (x2 - x) * (y2 - y) +
+            q21 * (x - x1) * (y2 - y) +
+            q12 * (x2 - x) * (y - y1) +
+            q22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1) + 0.0)
+
+
+def sample_z_m(num, numgrid, redshifts, masses, Mmin):
+    """
+    Randomly generate the requested number of pairs of (z, M) following
+    the specified number distribution.
+    """
+    zmin = redshifts.min()
+    zmax = redshifts.max()
+    Mmax = masses.max()
+    NM = numgrid.max()
+    z_list = []
+    M_list = []
+    i = 0
+    while i < num:
+        z = np.random.uniform(low=zmin, high=zmax)
+        M = np.random.uniform(low=Mmin, high=Mmax)
+        r = np.random.uniform(low=0.0, high=1.0)
+        zi1 = (redshifts < z).sum()
+        zi2 = zi1 - 1
+        if zi2 < 0:
+            zi2 += 1
+            zi1 += 1
+        Mi1 = (masses < M).sum()
+        Mi2 = Mi1 - 1
+        if Mi2 < 0:
+            Mi2 += 1
+            Mi1 += 1
+        N = bilinear_interpolation(
+            z, np.log(M),
+            points=[(redshifts[zi1], np.log(masses[Mi1]), numgrid[zi1, Mi1]),
+                    (redshifts[zi1], np.log(masses[Mi2]), numgrid[zi1, Mi2]),
+                    (redshifts[zi2], np.log(masses[Mi1]), numgrid[zi2, Mi1]),
+                    (redshifts[zi2], np.log(masses[Mi2]), numgrid[zi2, Mi2])])
+        if r < N/NM:
+            print("[%d/%d] (z, M) = (%f, %g)" % (i+1, num, z, M),
+                  file=sys.stderr)
+            z_list.append(z)
+            M_list.append(M)
+            i += 1
+    return (np.array(z_list), np.array(M_list))
 
 
 def main():
@@ -123,6 +197,9 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Calculate total cluster number (>Mmin) within a FoV")
+    parser.add_argument("-C", "--clobber", dest="clobber",
+                        action="store_true",
+                        help="overwrite existing file")
     parser.add_argument("-W", "--width", dest="width", type=float,
                         default=fov_width,
                         help="FoV width [deg] (default: %s)" % fov_width)
@@ -140,7 +217,15 @@ def main():
     parser.add_argument("-d", "--data", dest="data", required=True,
                         help="dndM data file generated from Press-Schechter " +
                         "formalism (e.g., dndMdata.txt)")
+    parser.add_argument("-S", "--sample-z-m", dest="sample_zm",
+                        action="store_true",
+                        help="whether to sample the (z, M) pairs (VERY SLOW!)")
+    parser.add_argument("-o", "--outfile", dest="outfile",
+                        help="output file to save the sampled (z,M) pairs")
     args = parser.parse_args()
+
+    if os.path.exists(args.outfile) and not args.clobber:
+        raise OSError("output file already exists: %s" % args.outfile)
 
     coverage_deg2 = args.width * args.height  # [deg^2]
     coverage = coverage_deg2 * au.deg.to(au.rad)**2  # [rad^2] = [sr]
@@ -154,9 +239,25 @@ def main():
     numgrid = calc_number_grid(density, redshifts=redshifts, masses=masses)
     counts = calc_cluster_counts(numgrid, masses=masses, Mmin=Mmin_halo,
                                  coverage=coverage)
-
     print("Total number of clusters (M > %g [Msun]):" % Mmin, file=sys.stderr)
-    print(int(counts))
+    print(counts)
+
+    if args.sample_zm:
+        if args.outfile is None:
+            raise ValueError("--outfile required!")
+        print("Sampling (z, M) pairs ...")
+        randz, randM = sample_z_m(num=counts, numgrid=numgrid,
+                                  redshifts=redshifts,
+                                  masses=masses, Mmin=Mmin_halo)
+        header = ["dndM data: %s\n" % os.path.abspath(args.data),
+                  "coverage: %s x %s [deg]\n" % (args.width, args.height),
+                  "dark matter fraction: %s\n" % args.fraction,
+                  "minimum cluster mass: %g [Msun]\n" % args.Mmin,
+                  "cluster numbers: %d\n" % counts,
+                  "\n",
+                  "redshift           Mass[Msun]"]
+        np.savetxt(args.outfile, np.column_stack([randz, randM]),
+                   header="".join(header))
 
 
 if __name__ == "__main__":
