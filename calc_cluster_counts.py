@@ -2,15 +2,17 @@
 #
 # Copyright (c) 2015,2017 Aaron LI
 #
-# Based on 'calc_totalnum.cc'
+# Based on `calc_totalnum.cc` & `z_m_simulation.cc`
 #
 # 2015/04/16
 # Updated: 2017-07-17
 #
 
 """
-This tool calculate the total number of clusters within the specified
-sky coverage.
+Calculate the total number of clusters within the specified FoV coverage
+according to the supplied dark matter density distribution obtained by
+Press-Schechter formalism, then sampling the density distribution to
+generate random (z, M) pairs for each cluster using the "rejection algorithm".
 
 
 Format of data file "dndmdata.txt"
@@ -259,6 +261,8 @@ def main():
                   "redshift               ClusterMass[Msun]"]
         np.savetxt(args.outfile, np.column_stack([randz, randM]),
                    header="".join(header))
+        print("Sampled (z, M) data written to: %s" % args.outfile,
+              file=sys.stderr)
 
 
 if __name__ == "__main__":
