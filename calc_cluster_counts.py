@@ -13,7 +13,7 @@ This tool calculate the total number of clusters within the specified
 sky coverage.
 
 
-Format of data file "dndm.dat"
+Format of data file "dndmdata.txt"
 ------------------------------
 z1  mass1  density1
 z1  mass2  density2
@@ -22,6 +22,11 @@ z2  mass1  density4
 z2  mass2  density5
 z2  ..     density6
 ...
+
+where,
+mass has unit [Msun],
+density has unit [number]/[Msun]/dVc, and dVc is differential comoving
+volume with dimension [Mpc^3]/[unit redshift]/[sr]
 """
 
 
@@ -69,7 +74,7 @@ def main():
 
     coverage_deg2 = args.width * args.height  # [deg^2]
     coverage = coverage_deg2 * au.deg.to(au.rad)**2  # [rad^2] = [sr]
-    print("FoV coverage: %sx%s [deg^2] = %.f [sr]" %
+    print("FoV coverage: %sx%s [deg^2] = %g [sr]" %
           (args.width, args.height, coverage), file=sys.stderr)
     Mmin_halo = args.Mmin * args.fraction
     print("Halo minimum mass: %g * %s = %g [Msun]" %
