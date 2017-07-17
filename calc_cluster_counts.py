@@ -112,7 +112,7 @@ def calc_cluster_counts(numgrid, masses, Mmin, coverage):
     """
     midx = masses >= Mmin
     counts = np.sum(numgrid[:, midx]) * coverage
-    return int(counts)
+    return int(np.round(counts))
 
 
 def bilinear_interpolation(x, y, points):
@@ -213,7 +213,7 @@ def main():
     parser.add_argument("-m", "--min-mass", dest="Mmin", type=float,
                         default=Mmin,
                         help="Minimum (total) mass of the clusters " +
-                        "(default: %s [Msun])" % Mmin)
+                        "(default: %g [Msun])" % Mmin)
     parser.add_argument("-d", "--data", dest="data", required=True,
                         help="dndM data file generated from Press-Schechter " +
                         "formalism (e.g., dndMdata.txt)")
@@ -224,7 +224,7 @@ def main():
                         help="output file to save the sampled (z,M) pairs")
     args = parser.parse_args()
 
-    if os.path.exists(args.outfile) and not args.clobber:
+    if args.outfile and os.path.exists(args.outfile) and not args.clobber:
         raise OSError("output file already exists: %s" % args.outfile)
 
     coverage_deg2 = args.width * args.height  # [deg^2]
@@ -249,13 +249,14 @@ def main():
         randz, randM = sample_z_m(num=counts, numgrid=numgrid,
                                   redshifts=redshifts,
                                   masses=masses, Mmin=Mmin_halo)
+        randM /= args.fraction  # -> cluster mass [Msun]
         header = ["dndM data: %s\n" % os.path.abspath(args.data),
                   "coverage: %s x %s [deg]\n" % (args.width, args.height),
                   "dark matter fraction: %s\n" % args.fraction,
                   "minimum cluster mass: %g [Msun]\n" % args.Mmin,
                   "cluster numbers: %d\n" % counts,
-                  "\n",
-                  "redshift           Mass[Msun]"]
+                  "----------------------------------------\n",
+                  "redshift               ClusterMass[Msun]"]
         np.savetxt(args.outfile, np.column_stack([randz, randM]),
                    header="".join(header))
 
