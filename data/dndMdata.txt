@@ -1,3 +1,15 @@
+#
+# Dark matter halo distribution from Press-Schechter formalism
+#
+# Columns
+#---------
+# * Redshifts: 0.0 -> 3.02, step 0.02, bins 152
+# * Halo mass: 1e12 -> 9.12e15 [Msun], log-even, bins 100
+# * Density: number/dVc/dM
+#   where,
+#   - dVc: differential comvoing volume, Mpc^3/sr/[unit redshift]
+#
+# redshift       halo_mass[Msun]  density
   0.0000000E+00  1.0000000E+12  2.4195695E-15
   0.0000000E+00  1.0964781E+12  2.0372754E-15
   0.0000000E+00  1.2022642E+12  1.7151431E-15
