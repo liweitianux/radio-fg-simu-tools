@@ -35,8 +35,10 @@ volume with dimension [Mpc^3]/[unit redshift]/[sr]
 import os
 import sys
 import argparse
+import random
 
 import numpy as np
+import numba as nb
 import astropy.units as au
 from astropy.cosmology import FlatLambdaCDM
 
@@ -117,38 +119,54 @@ def calc_cluster_counts(numgrid, masses, Mmin, coverage):
     return int(np.round(counts))
 
 
-def bilinear_interpolation(x, y, points):
+@nb.jit(nb.float64(nb.float64, nb.float64,
+                   nb.types.UniTuple(nb.float64, 3),
+                   nb.types.UniTuple(nb.float64, 3),
+                   nb.types.UniTuple(nb.float64, 3),
+                   nb.types.UniTuple(nb.float64, 3)),
+        nopython=True)
+def bilinear_interpolation(x, y, p11, p12, p21, p22):
     """
     Interpolate (x,y) from values associated with four points.
 
     The four points are a list of four triplets:  (x, y, value).
     The four points can be in any order.  They should form a rectangle.
 
-    >>> bilinear_interpolation(12, 5.5,
-    ...                        [(10, 4, 100),
-    ...                         (20, 4, 200),
-    ...                         (10, 6, 150),
-    ...                         (20, 6, 300)])
-    165.0
+    p11 --+-- p12
+     |    |    |
+     +--(x,y)--+
+     |    |    |
+    p21 --+-- p22
 
-    Credit:
+    Credit
+    ------
     [1] http://en.wikipedia.org/wiki/Bilinear_interpolation
     [2] https://stackoverflow.com/a/8662355/4856091
     """
-    # order points by x, then by y
-    points = sorted(points)
-    (x1, y1, q11), (_x1, y2, q12), (x2, _y1, q21), (_x2, _y2, q22) = points
+    # Sort points by X then Y
+    points = sorted([p11, p12, p21, p22])
+    x1, y1, q11 = points[0]
+    _x1, y2, q12 = points[1]
+    x2, _y1, q21 = points[2]
+    _x2, _y2, q22 = points[3]
 
     if x1 != _x1 or x2 != _x2 or y1 != _y1 or y2 != _y2:
         raise ValueError("points do not form a rectangle")
     if not x1 <= x <= x2 or not y1 <= y <= y2:
         raise ValueError("(x, y) not within the rectangle")
-    return (q11 * (x2 - x) * (y2 - y) +
-            q21 * (x - x1) * (y2 - y) +
-            q12 * (x2 - x) * (y - y1) +
-            q22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1) + 0.0)
+    a1 = (q11 * (x2 - x) * (y2 - y) + q21 * (x - x1) * (y2 - y) +
+          q12 * (x2 - x) * (y - y1) + q22 * (x - x1) * (y - y1))
+    a2 = (x2 - x1) * (y2 - y1)
+    q = a1 / a2
+    return q
 
 
+@nb.jit(nb.types.UniTuple(nb.float64[:], 2)(nb.int64,
+                                            nb.float64[:, :],
+                                            nb.float64[:],
+                                            nb.float64[:],
+                                            nb.float64),
+        nopython=True)
 def sample_z_m(num, numgrid, redshifts, masses, Mmin):
     """
     Randomly generate the requested number of pairs of (z, M) following
@@ -157,14 +175,16 @@ def sample_z_m(num, numgrid, redshifts, masses, Mmin):
     zmin = redshifts.min()
     zmax = redshifts.max()
     Mmax = masses.max()
-    NM = numgrid.max()
+    midx = masses >= Mmin
+    numgrid2 = numgrid[:, midx]
+    NM = numgrid2.max()
     z_list = []
     M_list = []
     i = 0
     while i < num:
-        z = np.random.uniform(low=zmin, high=zmax)
-        M = np.random.uniform(low=Mmin, high=Mmax)
-        r = np.random.uniform(low=0.0, high=1.0)
+        z = random.uniform(zmin, zmax)
+        M = random.uniform(Mmin, Mmax)
+        r = random.random()
         zi1 = (redshifts < z).sum()
         zi2 = zi1 - 1
         if zi2 < 0:
@@ -177,13 +197,12 @@ def sample_z_m(num, numgrid, redshifts, masses, Mmin):
             Mi1 += 1
         N = bilinear_interpolation(
             z, np.log(M),
-            points=[(redshifts[zi1], np.log(masses[Mi1]), numgrid[zi1, Mi1]),
-                    (redshifts[zi1], np.log(masses[Mi2]), numgrid[zi1, Mi2]),
-                    (redshifts[zi2], np.log(masses[Mi1]), numgrid[zi2, Mi1]),
-                    (redshifts[zi2], np.log(masses[Mi2]), numgrid[zi2, Mi2])])
+            p11=(redshifts[zi1], np.log(masses[Mi1]), numgrid[zi1, Mi1]),
+            p12=(redshifts[zi1], np.log(masses[Mi2]), numgrid[zi1, Mi2]),
+            p21=(redshifts[zi2], np.log(masses[Mi1]), numgrid[zi2, Mi1]),
+            p22=(redshifts[zi2], np.log(masses[Mi2]), numgrid[zi2, Mi2]))
         if r < N/NM:
-            print("[%d/%d] (z, M) = (%f, %g)" % (i+1, num, z, M),
-                  file=sys.stderr)
+            print(i+1, "/", num, "...")
             z_list.append(z)
             M_list.append(M)
             i += 1
