@@ -44,6 +44,76 @@ Om0 = 0.27  # Critical matter density at z=0
 cosmo = FlatLambdaCDM(H0=H0, Om0=Om0)
 
 
+def load_dndmdata(filename):
+    """
+    Load dndM data and reformat into a 2D density grid together with
+    redshifts and masses vectors.
+
+    Data Description
+    ----------------
+    * Redshifts: 0.0 -> 3.02, even-spacing, step 0.02
+    * Halo mass: 1e12 -> 9.12e15 [Msun], log-even (dark matter)
+    * Density: number/dVc/dM
+      where,
+      - dVc: differential comvoing volume, Mpc^3/sr/[unit redshift]
+    """
+    data = np.loadtxt(filename)
+    redshifts = data[:, 0]
+    masses = data[:, 1]
+    density = data[:, 2]
+
+    redshifts = np.array(list(set(redshifts)))
+    redshifts.sort()
+    masses = np.array(list(set(masses)))
+    masses.sort()
+    density = density.reshape((len(redshifts), len(masses)))
+
+    return (redshifts, masses, density)
+
+
+def delta(x, logeven=False):
+    """
+    Calculate the delta values for each element of a vector,
+    assuming they are evenly or log-evenly distributed,
+    with extrapolating.
+    """
+    x = np.asarray(x)
+    if logeven:
+        x = np.log(x)
+    step = x[1] - x[0]
+    x1 = np.concatenate([[x[0]-step], x[:-1]])
+    x2 = np.concatenate([x[1:], [x[-1]+step]])
+    dx = (x2 - x1) * 0.5
+    if logeven:
+        dx = np.exp(dx)
+    return dx
+
+
+def calc_number_grid(density, redshifts, masses):
+    """
+    Calculate the number distribution w.r.t. redshift, mass, and unit
+    coverage [sr] from the density distribution.
+    """
+    dz = delta(redshifts)
+    dM = delta(masses)
+    dMgrip, dzgrip = np.meshgrid(dM, dz)
+    Mgrip, zgrip = np.meshgrid(masses, redshifts)
+    dVcgrip = cosmo.differential_comoving_volume(zgrip).value  # [Mpc^3/sr]
+    numgrid = density * dVcgrip * dzgrip * dMgrip
+    return numgrid
+
+
+def calc_cluster_counts(numgrid, masses, Mmin, coverage):
+    """
+    Calculate the total number of clusters (>= minimum mass) within the
+    FoV coverage according to the number density distribution (e.g.,
+    predicted by the Press-Schechter mass function)
+    """
+    midx = masses >= Mmin
+    counts = np.sum(numgrid[:, midx]) * coverage
+    return counts
+
+
 def main():
     # Default parameters
     fov_width = 10.0  # Width of FoV [deg]
@@ -80,28 +150,11 @@ def main():
     print("Halo minimum mass: %g * %s = %g [Msun]" %
           (args.Mmin, args.fraction, Mmin_halo), file=sys.stderr)
 
-    dndmdata = np.loadtxt(args.data)
-    print("Loaded dndM data from file: %s" % args.data, file=sys.stderr)
+    redshifts, masses, density = load_dndmdata(args.data)
+    numgrid = calc_number_grid(density, redshifts=redshifts, masses=masses)
+    counts = calc_cluster_counts(numgrid, masses=masses, Mmin=Mmin_halo,
+                                 coverage=coverage)
 
-    redshifts = set(dndmdata[:, 0])
-    redshifts = np.array(list(redshifts))
-    redshifts.sort()
-    dz = redshifts[1] - redshifts[0]  # even-spacing
-
-    halomass = dndmdata[:, 1]
-    midx = (halomass >= Mmin_halo)
-    mass1 = halomass[midx]
-    midx2 = np.concatenate([midx[1:], [False]])
-    mass2 = halomass[midx2]
-    dmass = mass1 - mass2
-
-    redshifts = dndmdata[midx, 0]
-    density = dndmdata[midx, 2]
-
-    counts = 0
-    for z, dM, den in zip(redshifts, dmass, density):
-        dVc = cosmo.differential_comoving_volume(z).value  # [Mpc^3/sr]
-        counts += (den * dVc*dz*coverage * dM)
     print("Total number of clusters (M > %g [Msun]):" % Mmin, file=sys.stderr)
     print(int(counts))
 
