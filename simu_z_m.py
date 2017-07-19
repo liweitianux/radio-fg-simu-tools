@@ -5,7 +5,7 @@
 # Based on `calc_totalnum.cc` & `z_m_simulation.cc`
 #
 # 2015/04/16
-# Updated: 2017-07-17
+# Updated: 2017-07-19
 #
 
 """
@@ -240,7 +240,9 @@ def main():
                         "formalism (e.g., dndMdata.txt)")
     parser.add_argument("-S", "--sample-z-m", dest="sample_zm",
                         action="store_true",
-                        help="whether to sample the (z, M) pairs (VERY SLOW!)")
+                        help="whether to sample the (z, M) pairs")
+    parser.add_argument("--csv", dest="csv", action="store_true",
+                        help="whether to store the sample data in CSV format")
     parser.add_argument("-o", "--outfile", dest="outfile",
                         help="output file to save the sampled (z,M) pairs")
     args = parser.parse_args()
@@ -271,6 +273,7 @@ def main():
                                   redshifts=redshifts,
                                   masses=masses, Mmin=Mmin_halo)
         randM /= args.fraction  # -> cluster mass [Msun]
+        catalog = np.column_stack([randz, randM])
         header = ["dndM data: %s\n" % os.path.abspath(args.data),
                   "coverage: %s x %s [deg]\n" % (args.width, args.height),
                   "dark matter fraction: %s\n" % args.fraction,
@@ -278,8 +281,17 @@ def main():
                   "cluster numbers: %d\n" % counts,
                   "----------------------------------------\n",
                   "redshift               ClusterMass[Msun]"]
-        np.savetxt(args.outfile, np.column_stack([randz, randM]),
-                   header="".join(header))
+        if args.csv:
+            print("Save sampled (z, M) in CSV format ...", file=sys.stderr)
+            import pandas as pd
+
+            df = pd.DataFrame(catalog, columns=["z", "mass"])
+            with open(args.outfile, "w") as fp:
+                fp.write("# " + "# ".join(header) + "\n")
+                df.to_csv(fp, index=False)
+        else:
+            np.savetxt(args.outfile, np.column_stack([randz, randM]),
+                       header="".join(header))
         print("Sampled (z, M) data written to: %s" % args.outfile,
               file=sys.stderr)
 
