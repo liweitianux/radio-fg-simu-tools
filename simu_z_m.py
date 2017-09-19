@@ -38,7 +38,6 @@ import argparse
 import random
 
 import numpy as np
-import numba as nb
 import astropy.units as au
 from astropy.cosmology import FlatLambdaCDM
 
@@ -119,12 +118,6 @@ def calc_cluster_counts(numgrid, masses, Mmin, coverage):
     return int(np.round(counts))
 
 
-@nb.jit(nb.float64(nb.float64, nb.float64,
-                   nb.types.UniTuple(nb.float64, 3),
-                   nb.types.UniTuple(nb.float64, 3),
-                   nb.types.UniTuple(nb.float64, 3),
-                   nb.types.UniTuple(nb.float64, 3)),
-        nopython=True)
 def bilinear_interpolation(x, y, p11, p12, p21, p22):
     """
     Interpolate (x,y) from values associated with four points.
@@ -161,12 +154,6 @@ def bilinear_interpolation(x, y, p11, p12, p21, p22):
     return q
 
 
-@nb.jit(nb.types.UniTuple(nb.float64[:], 2)(nb.int64,
-                                            nb.float64[:, :],
-                                            nb.float64[:],
-                                            nb.float64[:],
-                                            nb.float64),
-        nopython=True)
 def sample_z_m(num, numgrid, redshifts, masses, Mmin):
     """
     Randomly generate the requested number of pairs of (z, M) following
@@ -213,7 +200,7 @@ def main():
     # Default parameters
     fov_width = 10.0  # Width of FoV [deg]
     fov_height = fov_width  # Height of FoV [deg]
-    dm_fraction = 0.83  # dark matter fraction in clusters
+    dm_fraction = 0.80  # dark matter fraction in clusters
     Mmin = 2e14  # minimum (total) mass of clusters
 
     parser = argparse.ArgumentParser(
