@@ -1,0 +1,8 @@
+# binaries
+create_gps_map
+make_ptr_map
+random_test
+simulate_gps
+
+# link
+fio
