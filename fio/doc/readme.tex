@@ -1,0 +1,248 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% FITSIO C++ 接口库 libfio 使用说明                                     %%
+%%                                                                       %%
+%% 顾俊骅                                                                %%
+%% v1.0, June 7, 2007                                                    %%
+%%                                                                       %%
+%% 李维天                                                                %%
+%% v1.1, May 8, 2012                                                     %%
+%% minor changes                                                         %%
+%%                                                                       %%
+%% use `xelatex' to process this manual                                  %%
+%% besides, maybe some extra packages and fonts needed                   %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[a4paper,12pt]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath}
+\usepackage[xetex,x11names]{xcolor}
+\usepackage{graphicx}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\usepackage{xltxtra}
+\usepackage{xunicode}
+\usepackage{xeCJK}
+\usepackage{listings}
+\usepackage{paralist}     % compactenum, compactitem, ...
+% \usepackage{booktabs}     % improve the 'tabular' env
+\usepackage{hyperref}
+%\usepackage[all]{hypcap}  % help to make the link point to the top of
+                          % the image. call this package *after* hyperref
+
+\XeTeXinputencoding "UTF8"
+\XeTeXlinebreaklocale "zh"
+\XeTeXlinebreakskip = 0pt plus 1pt minus 0.1pt
+
+\defaultfontfeatures{Mapping=tex-text}   % should before \set*font
+
+%\setCJKfamilyfont{}{}
+\setCJKmainfont[BoldFont={WenQuanYi Zen Hei},%
+  ItalicFont={WenQuanYi Zen Hei},%
+  SlantedFont={AR PL UKai CN}%
+  ]{AR PLBaosong2GBK Light}
+\setCJKsansfont{WenQuanYi Zen Hei}
+\setCJKmonofont{WenQuanYi Zen Hei Mono}
+\punctstyle{kaiming}
+\setlength{\parindent}{2em}
+\renewcommand{\baselinestretch}{1.25}
+
+\setmainfont[%BoldFont={Linux Libertine O},%
+  SmallCapsFont={Linux Libertine Capitals O},%
+  SlantedFont={Linux Libertine Slanted O},%
+  ]{Linux Libertine O}
+\setsansfont[%BoldFont={Linux Biolinum O},%
+  SmallCapsFont={Linux Biolinum Capitals O},%
+  SlantedFont={Linux Biolinum Slanted O},%
+  ]{Linux Biolinum O}
+% \setmonofont[%BoldFont={CMU Typewriter Text},%
+%   ]{CMU Typewriter Text}
+\setmonofont{DejaVu Sans Mono}
+\setmathfont{XITS Math}      % require 'unicode-math' pkg
+
+\hypersetup{unicode=true,%
+            pdfstartview={FitH},%                  % fits the width
+            pdftitle={FITSIO C++ 接口库 libfio 使用说明},%
+            pdfauthor={LIweitiaNux},%
+            pdfkeywords={FITSIO, libfio},%
+            pdfnewwindow=true,%                    % links in new window
+            colorlinks=true,%                      % false: boxed links
+            linkcolor=red,%
+            citecolor=green,%
+            filecolor=magenta,%
+            urlcolor=cyan%
+}
+
+
+\lstset{basicstyle={\scriptsize,\ttfamily},%
+        numbers=left,%
+        numberstyle=\tiny,%
+        keywordstyle=\bfseries\color{purple},%
+        commentstyle=\itshape\color{blue},%
+        stringstyle=\color{red},%
+        showstringspaces=false,%
+        frame=shadowbox,%
+        breaklines=true,%
+        escapeinside=``
+}
+
+
+\title{\textsc{FITSIO C++ 接口库 libf{}io 使用说明}}
+\author{顾俊骅}
+\date{v1.0, June 7, 2007 \\
+  v1.1, May 8, 2012, Minor changes }
+
+\begin{document}
+\maketitle
+
+\section{功能描述}
+\texttt{libfio} 是 \texttt{cfitsio} 软件包在 \texttt{C++} 语言
+上的包装。通过 \texttt{libfio}，可以在 \texttt{C++} 语言中方便
+地操纵 \texttt{fits} 格式的文件，主要是 \texttt{fits} 图像文件。
+\texttt{libfio} 隐藏了 \texttt{cfitsio} 库中所要求的 \texttt{C}
+语言指针语法，可以大大地提高效率，精简程序长度。
+
+
+\section{安装}
+\texttt{libfio} 依赖于 \texttt{cfitsio} 和 \texttt{blitz++} 两个库。
+
+\subsection{安装 \texttt{blitz++}}
+Debian Linux 官方源中有 \texttt{blitz++}，分为 \texttt{libblitz0-dev},
+\texttt{libblitz0ldbl} 和 \texttt{libblitz-doc} 三个包，可以使用
+\texttt{apt} 或 \texttt{aptitude} 直接安装：
+\begin{verbatim}
+# apt-get install libblitz0-dev libblitz0ldbl libblitz-doc
+\end{verbatim}
+
+Ubuntu Linux 官方源中未包含 \texttt{blitz++} 软件包，但可以直接从
+\texttt{launchpad.net} ( \url{https://launchpad.net/ubuntu/+source/blitz\%2B\%2B} )
+下载编译好的二进制包，注意根据安装的系统选择 \texttt{i386} (32 位) 或者
+\texttt{amd64} (64 位)，然后使用 \texttt{dpkg} 安装，如：
+\begin{verbatim}
+# dpkg -i libblitz0-dev_0.9-12build1_amd64.deb \
+    libblitz0ldbl_0.9-12build1_amd64.deb \
+    libblitz-doc_0.9-12build1_all.deb
+\end{verbatim}
+
+对于其他 Linux 发行版，如果在源里找不到，也没有预编译好的二进制包，则
+可手动编译安装。注意应该安装好相应的开发工具和依赖软件包。
+
+\subsection{设置 \texttt{fitsio}}
+更新：本软件包所需要的 \texttt{fitsio} 库和头文件现已整理存放于子目录
+\texttt{cfitsio}，所以可以直接进行之后的编译安装。
+
+此处整理出来的 fitsio 等文件是从 \texttt{HEASOFT 6.12} 提取。
+
+
+\section{编译安装 \texttt{libfio}}
+解压本软件包后，进入解压后的目录，首先以``普通用户''执行以下命令编译：
+\begin{verbatim}
+$ make clean
+$ make
+\end{verbatim}
+如果编译顺利通过，则可以切换到``超级用户''安装：
+\begin{verbatim}
+# make install
+\end{verbatim}
+默认安装路径为 \texttt{/usr/local/include} 和 \texttt{/usr/local/lib}。
+同时在系统目录 \texttt{/usr/lib} 建立符号链接，否则编译后的程序可能因
+无法找到所需的库而无法正常运行。
+如果不满意，当然可以亲自修改 \texttt{Makefile}。
+
+
+\section{使用 \texttt{libfio}}
+
+\subsection{头文件包含}
+首先应该在使用到 \texttt{libfio} 的程序源文件中包含对应的头文件
+\texttt{fio.h}：
+\begin{verbatim}
+#include <fio.h>
+\end{verbatim}
+通常情况下，可能还需要再添加一行：
+\begin{verbatim}
+using namespace blitz;
+\end{verbatim}
+
+\subsection{编译选项}
+如果将 \texttt{libfio} 库和相关的头文件安装于默认路径，即
+\texttt{/usr/local/lib} 和 \texttt{/usr/local/include}，则
+在编译使用到 \texttt{libfio} 的程序源文件时，应该添加如下
+编译选项：
+\begin{verbatim}
+-I/usr/local/include -L/usr/local/lib -lfio -lcfitsio -lblitz
+\end{verbatim}
+此外，建议添加选项 \texttt{-Wall} 来让编译器报告所有警告，还可以
+添加选项 \texttt{-g} 以用于之后可在 \texttt{GDB} 中调试。如果
+确认程序没有错误或不足，则可以使用选项 \texttt{-O2} 来打开编译
+器的一些优化功能。
+
+\subsection{程序实例}
+下面通过分析一个实际程序，介绍 \texttt{libfio} 库的使用方法。
+\begin{lstlisting}[language={C++}]
+// `包含` fio `头文件`
+#include <fio.h>
+#include <iostream>
+#include <cmath>
+
+// `命名空间`
+using namespace std;
+using namespace blitz;
+
+// `主程序开始`
+int main(int argc, char *argv[])
+// argc `和` argv `用于从命令行获取参数`
+// argc `是命令行参数的数目，包含程序名称`
+// argv[0], argv[1], ..., argv[argc-1] `是各个参数字符串`
+{
+    if (3 != argc) {        // `判断输入参数个数是否符合要求`
+        fprintf(stderr, "Usage:\n");
+        fprintf(stderr, "     %s in.fits out.fits\n", argv[0]);
+        exit(-1);           // `强制程序结束并返回错误代码` －1
+    }
+
+    cfitsfile ff1;          // `声明一个用于操作` fits `文件的对象`
+    ff1.open(argv[1]);      // `打开一个已经存在的` fits `文件`
+    Array<double,2> img1;   // `声明一个用于存放图像的矩阵`
+    ff1 >> img1;            // `将数据从` fits `文件导入矩阵`
+
+    // `然后可以对这个矩阵中的数据进行各种处理`
+    // `比如说，这里计算输入图像的泊松误差`
+    Array<double,2> img2(img1.shape());
+    int i, j;
+    for (i=0; i<img2.extent(0); ++i) {
+        for (j=0; j<img2.extent(1); ++j) {
+            img2(i,j) = sqrt(img1(i,j));
+        }
+    }
+
+    cfitsfile ff2;          // `声明另一个用于操作` fits `文件的对象`
+    ff2.create(argv[2]);    // `新建一个` fits `文件`
+                            // `如果文件存在，则先删除再新建`
+    ff2 << img2;            // `将数据从矩阵导出到` fits `文件`
+
+    return 0;               // `程序正常结束`
+}
+
+\end{lstlisting}
+
+
+\section{ChangeLogs}
+\noindent 2012/05/08, v1.1
+\begin{compactitem}
+  \item 更正 \texttt{fio.cc} 中两处相同的错误：写错了变量名，导致
+      编译时被警告有未使用的变量。
+  \item 整理本软件包所需的 \texttt{fitsio} 库和对应的头文件，与软件
+      一同打包，并更新相关头文件和 \texttt{Makefile}，支持 32 位与 64 位系统。
+  \item 修改了 \texttt{Makefile}，添加所需要的 \texttt{-fPIC} 选项，
+      修改安装路径到 \texttt{/usr/local}，以及其他一些小改动。
+  \item 更新了说明文档。
+\end{compactitem}
+
+\noindent 2007/06/07, v1.0
+\begin{compactitem}
+  \item 原始程序
+\end{compactitem}
+
+
+\end{document}
+
