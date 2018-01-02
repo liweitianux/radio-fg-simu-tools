@@ -11,36 +11,36 @@
 ## v1.3, 2018-01-02
 ##
 
-FITS_INC= 	-I./include
-FITS_LIB= 	-L./lib
-LINK_LIB= 	-lfio -lblitz -lcfitsio
 HEADS= 		fio.h fits_trait.h fitsfile.h
 OBJS= 		fio.o fits_trait.o fitsfile.o region.o region_imp.o
 
 CXX?= 		g++
-CXXFLAGS= 	-g -Wall -pipe -fPIC
-LDFLAGS=	-Wl,-rpath='$$ORIGIN/lib'
+CXXFLAGS= 	-g -Wall -pipe -fPIC -I./include
+LDFLAGS=	-L./lib -Wl,-rpath='$$ORIGIN/lib' -lfio -lblitz -lcfitsio
 
-TGT= 		lib/libfio.so fits2txt txt2fits
+TGT= 		lib/libfio.so include/fio.h fits2txt txt2fits
 
 
 all: $(TGT)
 
 
 lib/libfio.so: libfio.o $(OBJS)
-	$(CXX) $(CXXFLAGS) -shared -o $@ $< $(OBJS) $(FITS_INC)
+	$(CXX) $(CXXFLAGS) -shared -o $@ $< $(OBJS)
+
+include/fio.h: fio.h
+	cp $< $@
 
 
 fits2txt: fits2txt.o lib/libfio.so lib/libblitz.so
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< $(FITS_LIB) $(LINK_LIB)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
 
 
 txt2fits: txt2fits.o lib/libfio.so lib/libblitz.so
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< $(FITS_LIB) $(LINK_LIB)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $<
 
 
 %.o: %.cc
-	$(CXX) $(CXXFLAGS) -c $< $(FITS_INC)
+	$(CXX) $(CXXFLAGS) -c $<
 
 
 lib/libblitz.so: blitz-0.9

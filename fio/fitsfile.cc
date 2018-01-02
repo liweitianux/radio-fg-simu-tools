@@ -1,4 +1,4 @@
-#include "fitsfile.h"
+#include "fio.h"
 
 cfitsfile::cfitsfile()
   :pff(NULL)
