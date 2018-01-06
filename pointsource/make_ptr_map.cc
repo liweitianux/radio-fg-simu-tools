@@ -32,125 +32,116 @@ const int RQQ = 3;
 const int SF = 4;
 const int SB = 5;
 const int simulate_switches[] = {
-  -1,  /* holder */
-  1,   /* FR-I */
-  1,   /* FR-II */
-  1,   /* RQQ */
-  1,   /* SF */
-  1,   /* SB */
+        -1,  /* holder */
+        1,   /* FR-I */
+        1,   /* FR-II */
+        1,   /* RQQ */
+        1,   /* SF */
+        1,   /* SB */
 };
 
 
-struct FRI_info
-{
-  double core_ra;
-  double core_dec;
-  double core_flux;
-  double lobe_flux[2];
-  double lobe_major_axis[2];
-  double lobe_minor_axis[2];
-  double lobe_ra[2];
-  double lobe_dec[2];
-  double lobe_pa[2];
-  double redshift;
-  double cosv;
+struct FRI_info {
+    double core_ra;
+    double core_dec;
+    double core_flux;
+    double lobe_flux[2];
+    double lobe_major_axis[2];
+    double lobe_minor_axis[2];
+    double lobe_ra[2];
+    double lobe_dec[2];
+    double lobe_pa[2];
+    double redshift;
+    double cosv;
 
-  void reset()
-  {
-    core_ra=-1;
-    core_dec=-1;
-    core_flux=-1;
-    for(int i=0;i<2;++i)
-      {
-	lobe_flux[i]=-1;
-	lobe_major_axis[i]=-1;
-	lobe_minor_axis[i]=-1;
-	lobe_ra[i]=-1;
-	lobe_dec[i]=-1;
-	lobe_pa[i]=-1;
-      }
-    redshift=-1;
-    cosv=-1;
-  }
+    void reset() {
+        core_ra=-1;
+        core_dec=-1;
+        core_flux=-1;
+        for (int i=0; i<2; ++i) {
+            lobe_flux[i]=-1;
+            lobe_major_axis[i]=-1;
+            lobe_minor_axis[i]=-1;
+            lobe_ra[i]=-1;
+            lobe_dec[i]=-1;
+            lobe_pa[i]=-1;
+        }
+        redshift=-1;
+        cosv=-1;
+    }
 };
 
-struct FRII_info
-{
-  double core_ra;
-  double core_dec;
-  double core_flux;
-  double lobe_flux[2];
-  double lobe_major_axis[2];
-  double lobe_minor_axis[2];
-  double lobe_ra[2];
-  double lobe_dec[2];
-  double lobe_pa[2];
-  double hotspot_flux[2];
-  double hotspot_ra[2];
-  double hotspot_dec[2];
-  double cosv;
-  double redshift;
+struct FRII_info {
+    double core_ra;
+    double core_dec;
+    double core_flux;
+    double lobe_flux[2];
+    double lobe_major_axis[2];
+    double lobe_minor_axis[2];
+    double lobe_ra[2];
+    double lobe_dec[2];
+    double lobe_pa[2];
+    double hotspot_flux[2];
+    double hotspot_ra[2];
+    double hotspot_dec[2];
+    double cosv;
+    double redshift;
 
-  void reset()
-  {
-    core_ra=-1;
-    core_dec=-1;
-    core_flux=-1;
-    for(int i=0;i<2;++i)
-      {
-	lobe_flux[i]=-1;
-	lobe_major_axis[i]=-1;
-	lobe_minor_axis[i]=-1;
-	lobe_ra[i]=-1;
-	lobe_dec[i]=-1;
-	lobe_pa[i]=-1;
-	hotspot_flux[i]=-1;
-	hotspot_ra[i]=-1;
-	hotspot_dec[i]=-1;
-	cosv=-1;
-	redshift=-1;
-      }
-  }
+    void reset() {
+        core_ra=-1;
+        core_dec=-1;
+        core_flux=-1;
+        for (int i=0; i<2; ++i) {
+            lobe_flux[i]=-1;
+            lobe_major_axis[i]=-1;
+            lobe_minor_axis[i]=-1;
+            lobe_ra[i]=-1;
+            lobe_dec[i]=-1;
+            lobe_pa[i]=-1;
+            hotspot_flux[i]=-1;
+            hotspot_ra[i]=-1;
+            hotspot_dec[i]=-1;
+            cosv=-1;
+            redshift=-1;
+        }
+    }
 };
 
-struct RQQ_info
-{
-  double flux;
-  double ra;
-  double dec;
-  double redshift;
-  void reset()
-  {
-    flux=-1;
-    ra=-1;
-    dec=-1;
-    redshift=-1;
-  }
+struct RQQ_info {
+    double flux;
+    double ra;
+    double dec;
+    double redshift;
+
+    void reset() {
+        flux=-1;
+        ra=-1;
+        dec=-1;
+        redshift=-1;
+    }
 };
 
-struct SF_info
-{
-  double flux;
-  double ra;
-  double dec;
-  double major_axis;
-  double minor_axis;
-  double pa;
-  double m_hi;
-  int type;
-  double redshift;
+struct SF_info {
+    double flux;
+    double ra;
+    double dec;
+    double major_axis;
+    double minor_axis;
+    double pa;
+    double m_hi;
+    int type;
+    double redshift;
 
-  void reset()
-  {
-    flux=-1;
-    ra=-1;
-    dec=-1;
-    major_axis=-1;
-    minor_axis=-1;
-    pa=-1;
-    m_hi=-1;
-    redshift=-1;
-  }
+    void reset() {
+        flux=-1;
+        ra=-1;
+        dec=-1;
+        major_axis=-1;
+        minor_axis=-1;
+        pa=-1;
+        m_hi=-1;
+        redshift=-1;
+    }
 };
 
 
@@ -211,22 +202,22 @@ double calc_Tb(double flux_in_Jy, double pix_area, double freq)
 
 
 void usage(const char *name) {
-  fprintf(stderr, "Usage: %s [ -o output_prefix ] "
-          "[ -f fov ] [ -s image_size ] [ -x reduce_factor ] "
-          "[ -m flux_min ] [ -M flux_max ] "
-          "-O <output.csv> -i <dbfiles.list> freqMHz ...\n", name);
-  fprintf(stderr, "\n");
-  fprintf(stderr, "    -o : output prefix; default: 'ptr_'\n");
-  fprintf(stderr, "    -f : sky size/fov [deg]; default: 10 [deg]\n");
-  fprintf(stderr, "    -s : image size; default: 1800\n");
-  fprintf(stderr, "    -x : reduce source number by the given factor\n");
-  fprintf(stderr, "    -m : [uJy] minimum flux limit\n");
-  fprintf(stderr, "    -M : [uJy] maximum flux limit\n");
-  fprintf(stderr, "    -O : output CSV file storing the simulated source properties [required]\n");
-  fprintf(stderr, "    -i : filename of list of input database files; [required]\n");
-  fprintf(stderr, "    freqMHz : list of simulating frequencies [MHz]; [required]\n");
-  fprintf(stderr, "\n");
-  exit(EXIT_FAILURE);
+    fprintf(stderr, "Usage: %s [ -o output_prefix ] "
+            "[ -f fov ] [ -s image_size ] [ -x reduction_factor ] "
+            "[ -m flux_min ] [ -M flux_max ] "
+            "-O <output.csv> -i <dbfiles.list> freqMHz ...\n", name);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "    -o : output prefix; default: 'ptr_'\n");
+    fprintf(stderr, "    -f : sky size/fov [deg]; default: 10 [deg]\n");
+    fprintf(stderr, "    -s : image size; default: 1800\n");
+    fprintf(stderr, "    -x : reduce source number by the given factor\n");
+    fprintf(stderr, "    -m : [uJy] minimum flux limit\n");
+    fprintf(stderr, "    -M : [uJy] maximum flux limit\n");
+    fprintf(stderr, "    -O : output CSV file storing the simulated source properties [required]\n");
+    fprintf(stderr, "    -i : filename of list of input database files; [required]\n");
+    fprintf(stderr, "    freqMHz : list of simulating frequencies [MHz]; [required]\n");
+    fprintf(stderr, "\n");
+    exit(EXIT_FAILURE);
 }
 
 
@@ -244,7 +235,7 @@ int main(int argc, char * const argv[])
   const char *progname = argv[0];
   int opt;
   int img_size = 1800;
-  int reduce_factor = 1;
+  int reduction_factor = 1;
   double fov_deg = 10.0;  // 10 [deg]
   double fov_asec = fov_deg * 3600.0;  // [arcsec]
   double flux_min = 0.0;  // [Jy]
@@ -272,7 +263,7 @@ int main(int argc, char * const argv[])
         img_size = atoi(optarg);
         break;
       case 'x':
-        reduce_factor = atoi(optarg);
+        reduction_factor = atoi(optarg);
         break;
       case 'M':
         flux_max = atof(optarg) / 1e6;  // [uJy]->[Jy]
@@ -303,7 +294,7 @@ int main(int argc, char * const argv[])
   const double ra_min = -fov_deg / 2.0;
   const double dec_min = -fov_deg / 2.0;
   printf("INFO: flux limit: [%.2g, %.2g] [Jy]\n", flux_min, flux_max);
-  printf("INFO: reduce factor: %d\n", reduce_factor);
+  printf("INFO: reduction factor: %d\n", reduction_factor);
   printf("INFO: output source data file: %s\n", output_csv);
   printf("INFO: input database files list: %s\n", dbfiles_list);
   printf("INFO: image size: %d\n", img_size);
@@ -408,8 +399,25 @@ int main(int argc, char * const argv[])
           }
           ifs >> cos_va;
 
-          if (n % reduce_factor != 0)
-              continue;
+          flux = pow(10.0, i_151);  // [Jy]
+
+          /*
+           * ignore by galaxy, no by structure/component
+           */
+          if (old_galaxy != galaxy) {
+              hotspot_cnt = 0;
+              lobe_cnt = 0;
+              fr1.reset();
+              fr2.reset();
+              rqq.reset();
+              sf.reset();
+
+              if (n % reduction_factor != 0)
+                  continue;
+
+              if (flux < flux_min || flux > flux_max)
+                  continue;
+          }
 
           if (sftype==1)
               source_type = SF;
@@ -426,20 +434,6 @@ int main(int argc, char * const argv[])
                    << ", AGN_type: " << agntype << endl;
               assert(0);
           }
-
-          if (old_galaxy != galaxy) {
-              // different component in one galaxy
-              hotspot_cnt=0;
-              lobe_cnt=0;
-              fr1.reset();
-              fr2.reset();
-              rqq.reset();
-              sf.reset();
-          }
-
-          flux = pow(10.0, i_151);  // [Jy]
-          if (flux < flux_min || flux > flux_max)
-            continue;
 
           /*
            * Radio-quiet AGN
