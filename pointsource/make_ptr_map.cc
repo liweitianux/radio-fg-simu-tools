@@ -219,7 +219,7 @@ void usage(const char *name) {
   fprintf(stderr, "    -o : output prefix; default: 'ptr_'\n");
   fprintf(stderr, "    -f : sky size/fov [deg]; default: 10 [deg]\n");
   fprintf(stderr, "    -s : image size; default: 1800\n");
-  fprintf(stderr, "    -x : [TODO] reduce source number by the given factor\n");
+  fprintf(stderr, "    -x : reduce source number by the given factor\n");
   fprintf(stderr, "    -m : [uJy] minimum flux limit\n");
   fprintf(stderr, "    -M : [uJy] maximum flux limit\n");
   fprintf(stderr, "    -O : output CSV file storing the simulated source properties [required]\n");
@@ -237,13 +237,14 @@ int main(int argc, char * const argv[])
    */
   cerr << "COMMAND:" << endl;
   for (auto && str : std::vector<std::string> { argv, argv + argc }) {
-    cerr << str << " ";
+      cerr << str << " ";
   }
   cerr << endl << endl;
 
   const char *progname = argv[0];
   int opt;
   int img_size = 1800;
+  int reduce_factor = 1;
   double fov_deg = 10.0;  // 10 [deg]
   double fov_asec = fov_deg * 3600.0;  // [arcsec]
   double flux_min = 0.0;  // [Jy]
@@ -252,7 +253,7 @@ int main(int argc, char * const argv[])
   const char *output_csv = NULL;
   const char *dbfiles_list = NULL;
 
-  while ((opt = getopt(argc, argv, "f:i:m:o:s:M:O:")) != -1) {
+  while ((opt = getopt(argc, argv, "f:i:m:o:s:x:M:O:")) != -1) {
     switch (opt) {
       case 'f':
         fov_deg = atof(optarg);  // [deg]
@@ -270,6 +271,9 @@ int main(int argc, char * const argv[])
       case 's':
         img_size = atoi(optarg);
         break;
+      case 'x':
+        reduce_factor = atoi(optarg);
+        break;
       case 'M':
         flux_max = atof(optarg) / 1e6;  // [uJy]->[Jy]
         break;
@@ -284,13 +288,13 @@ int main(int argc, char * const argv[])
   argc -= optind;
   argv += optind;
   if (argc == 0) {
-    usage(progname);
+      usage(progname);
   }
   if (output_csv == NULL) {
-    usage(progname);
+      usage(progname);
   }
   if (dbfiles_list == NULL) {
-    usage(progname);
+      usage(progname);
   }
 
   const double pix_deg = fov_deg / img_size;  // [deg]
@@ -299,6 +303,7 @@ int main(int argc, char * const argv[])
   const double ra_min = -fov_deg / 2.0;
   const double dec_min = -fov_deg / 2.0;
   printf("INFO: flux limit: [%.2g, %.2g] [Jy]\n", flux_min, flux_max);
+  printf("INFO: reduce factor: %d\n", reduce_factor);
   printf("INFO: output source data file: %s\n", output_csv);
   printf("INFO: input database files list: %s\n", dbfiles_list);
   printf("INFO: image size: %d\n", img_size);
@@ -308,12 +313,11 @@ int main(int argc, char * const argv[])
   vector<double> freq_vec;
   vector<blitz::Array<double,2> > img_vec;
   printf("INFO: frequencies [MHz]:");
-  for(int i=0; i<argc; ++i)
-    {
+  for(int i=0; i<argc; ++i) {
       freq_vec.push_back(atof(argv[i]));
       img_vec.push_back(blitz::Array<double,2>(img_size,img_size));
       printf(" %.2f", freq_vec.back());
-    }
+  }
   printf("\n");
   printf("INFO: number of frequencies: %lu\n", freq_vec.size());
 
@@ -368,13 +372,11 @@ int main(int argc, char * const argv[])
          << endl;
 
   long ptr_cnt_sum = 0;
-  for(;;)
-    {
+  for (;;) {
       getline(input_list, fname);
-      if(!input_list.good())
-	{
-	  break;
-	}
+      if (!input_list.good())
+          break;
+
       cout << "Database: " << fname << endl;
       ifstream ifs(fname.c_str());
 
@@ -389,62 +391,51 @@ int main(int argc, char * const argv[])
 
       long n = 0;
       long ptr_cnt = 0;
-      for(n=0; ; ++n)
-	{
-	  ifs >> source >> cluster >> galaxy >> sftype >> agntype >> structure;
-
-	  if(!ifs.good())
-	    {
-	      cout << "  Source/component counts: " << n << endl;
+      for (n=0; ; ++n) {
+          ifs >> source;
+          if (!ifs.good()) {
+              cout << "  Source/component counts: " << n << endl;
               cout << "  Selected point sources: " << ptr_cnt << endl;
-	      break;
-	    }
+              break;
+          }
 
-	  ifs >> ra >> dec >> distance >> redshift >> pa
-	      >> major_axis >> minor_axis >> i_151 >> i_610 >> i_1400
-	      >> i_4860 >> i_18000;
+          ifs >> cluster >> galaxy >> sftype >> agntype >> structure
+              >> ra >> dec >> distance >> redshift
+              >> pa >> major_axis >> minor_axis
+              >> i_151 >> i_610 >> i_1400 >> i_4860 >> i_18000;
+          if (sftype) {
+              ifs >> m_hi;
+          }
+          ifs >> cos_va;
 
-	  if(sftype)
-	    {
-	      ifs >> m_hi;
-	    }
-	  ifs >> cos_va;
+          if (n % reduce_factor != 0)
+              continue;
 
-	  if(sftype==1)
-	    {
-	      source_type=SF;
-	    }
-	  else if(sftype==2)
-	    {
-	      source_type=SB;
-	    }
-	  else if(agntype==1)
-	    {
-	      source_type=RQQ;
-	    }
-	  else if(agntype==2)
-	    {
-	      source_type=FRI;
-	    }
-	  else if(agntype==3)
-	    {
-	      source_type=FRII;
-	    }
-	  else
-	    {
-	      cout<<sftype<<"\t"<<agntype<<endl;
-	      assert(0);
-	    }
+          if (sftype==1)
+              source_type = SF;
+          else if (sftype==2)
+              source_type = SB;
+          else if (agntype==1)
+              source_type = RQQ;
+          else if (agntype==2)
+              source_type = FRI;
+          else if (agntype==3)
+              source_type = FRII;
+          else {
+              cerr << "SF_type: " << sftype
+                   << ", AGN_type: " << agntype << endl;
+              assert(0);
+          }
 
-	  if(old_galaxy != galaxy)  // different component in one galaxy
-	    {
-	      hotspot_cnt=0;
-	      lobe_cnt=0;
-	      fr1.reset();
-	      fr2.reset();
-	      rqq.reset();
-	      sf.reset();
-	    }
+          if (old_galaxy != galaxy) {
+              // different component in one galaxy
+              hotspot_cnt=0;
+              lobe_cnt=0;
+              fr1.reset();
+              fr2.reset();
+              rqq.reset();
+              sf.reset();
+          }
 
           flux = pow(10.0, i_151);  // [Jy]
           if (flux < flux_min || flux > flux_max)
