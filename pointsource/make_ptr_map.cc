@@ -13,6 +13,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <cassert>
 #include <cmath>
 #include <string>
@@ -219,8 +220,8 @@ void usage(const char *name) {
   fprintf(stderr, "    -f : sky size/fov [deg]; default: 10 [deg]\n");
   fprintf(stderr, "    -s : image size; default: 1800\n");
   fprintf(stderr, "    -x : [TODO] reduce source number by the given factor\n");
-  fprintf(stderr, "    -m : [TODO] minimum flux limit\n");
-  fprintf(stderr, "    -M : [TODO] maximum flux limit\n");
+  fprintf(stderr, "    -m : [uJy] minimum flux limit\n");
+  fprintf(stderr, "    -M : [uJy] maximum flux limit\n");
   fprintf(stderr, "    -O : output CSV file storing the simulated source properties [required]\n");
   fprintf(stderr, "    -i : filename of list of input database files; [required]\n");
   fprintf(stderr, "    freqMHz : list of simulating frequencies [MHz]; [required]\n");
@@ -245,11 +246,13 @@ int main(int argc, char * const argv[])
   int img_size = 1800;
   double fov_deg = 10.0;  // 10 [deg]
   double fov_asec = fov_deg * 3600.0;  // [arcsec]
+  double flux_min = 0.0;  // [Jy]
+  double flux_max = std::numeric_limits<double>::infinity();
   const char *output_prefix = "ptr_";
   const char *output_csv = NULL;
   const char *dbfiles_list = NULL;
 
-  while ((opt = getopt(argc, argv, "f:i:o:s:O:")) != -1) {
+  while ((opt = getopt(argc, argv, "f:i:m:o:s:M:O:")) != -1) {
     switch (opt) {
       case 'f':
         fov_deg = atof(optarg);  // [deg]
@@ -258,11 +261,17 @@ int main(int argc, char * const argv[])
       case 'i':
         dbfiles_list = optarg;
         break;
+      case 'm':
+        flux_min = atof(optarg) / 1e6;  // [uJy]->[Jy]
+        break;
       case 'o':
         output_prefix = optarg;
         break;
       case 's':
         img_size = atoi(optarg);
+        break;
+      case 'M':
+        flux_max = atof(optarg) / 1e6;  // [uJy]->[Jy]
         break;
       case 'O':
         output_csv = optarg;
@@ -284,16 +293,17 @@ int main(int argc, char * const argv[])
     usage(progname);
   }
 
-  printf("INFO: output source data file: %s\n", output_csv);
-  printf("INFO: database files list: %s\n", dbfiles_list);
   const double pix_deg = fov_deg / img_size;  // [deg]
   const double pix_size = fov_asec / img_size;  // [arcsec]
   const double pix_area = pix_size * pix_size;  // [arcsec^2]
+  const double ra_min = -fov_deg / 2.0;
+  const double dec_min = -fov_deg / 2.0;
+  printf("INFO: flux limit: [%.2g, %.2g] [Jy]\n", flux_min, flux_max);
+  printf("INFO: output source data file: %s\n", output_csv);
+  printf("INFO: input database files list: %s\n", dbfiles_list);
   printf("INFO: image size: %d\n", img_size);
   printf("INFO: pixel size: %.1f [arcsec]\n", pix_size);
   printf("INFO: sky fov: %.1f [deg]\n", fov_deg);
-  const double ra_min = -fov_deg / 2.0;
-  const double dec_min = -fov_deg / 2.0;
 
   vector<double> freq_vec;
   vector<blitz::Array<double,2> > img_vec;
@@ -337,13 +347,14 @@ int main(int argc, char * const argv[])
          i_18000,           /* 18. */
          m_hi,              /* 19. */
          cos_va;            /* 20. */
+  double flux;  // [Jy]
 
   ifstream input_list(dbfiles_list);
   ofstream csvout(output_csv);
   csvout << "# type: 1 - FRI, 2 - FRII, 3 - RQQ, 4 - SF, 5 - SB\n"
          << "# redshift\n"
          << "# x, y: (core) position on the simulated image\n"
-         << "# flux: (core) flux @151[MHz]\n"
+         << "# flux: (core) flux @151[MHz]; unit: [Jy]\n"
          << "# major, minor, pa: (core) major and minor axes, and position angle (type: SF/SB)\n"
          << "# x_l1, y_l1, flux_l1, major_l1, minor_l1, pa_l1: lobe1 properties (type: FR-I/FR-II)\n"
          << "# x_l2, y_l2, flux_l2, major_l2, minor_l2, pa_l2: lobe2 properties (type: FR-I/FR-II)\n"
@@ -435,6 +446,10 @@ int main(int argc, char * const argv[])
 	      sf.reset();
 	    }
 
+          flux = pow(10.0, i_151);  // [Jy]
+          if (flux < flux_min || flux > flux_max)
+            continue;
+
           /*
            * Radio-quiet AGN
            */
@@ -445,12 +460,13 @@ int main(int argc, char * const argv[])
 		  rqq.reset();
 		  rqq.ra = ra - ra_min;
 		  rqq.dec = dec - dec_min;
-		  rqq.flux = pow(10.0, i_151);
+		  rqq.flux = flux;
 		  rqq.redshift = redshift;
-		  int x = (int)round(rqq.ra/pix_deg);
-		  int y = (int)round(rqq.dec/pix_deg);
+
+                  int x = (int)round(rqq.ra/pix_deg);
+                  int y = (int)round(rqq.dec/pix_deg);
                   if (x < 0 || x >= img_size || y < 0 || y >= img_size)
-                      continue;
+                    continue;
 
 		  for(vector<double>::size_type k=0; k<freq_vec.size(); ++k)
 		    {
@@ -468,14 +484,14 @@ int main(int argc, char * const argv[])
           /*
            * Star-formation / starburst galaxies
            */
-	  if(source_type==SF||source_type==SB)
+	  if(source_type==SF || source_type==SB)
 	    {
 	      sf.reset();
 	      assert(structure==4);
 	      sf.m_hi = m_hi;
 	      sf.ra = ra - ra_min;
 	      sf.dec = dec - dec_min;
-	      sf.flux = pow(10.,i_151);
+	      sf.flux = flux;
 	      sf.major_axis = major_axis;
 	      sf.minor_axis = minor_axis;
 	      sf.pa = pa;
@@ -488,7 +504,7 @@ int main(int argc, char * const argv[])
 		  double x = (sf.ra/pix_deg);
 		  double y = (sf.dec/pix_deg);
                   if (x < 0 || x >= img_size || y < 0 || y >= img_size)
-                      continue;
+                    continue;
 
 		  double a = 0.5 * sf.major_axis / pix_size;
 		  double b = 0.5 * sf.minor_axis / pix_size;
@@ -511,7 +527,7 @@ int main(int argc, char * const argv[])
 		      for(int j = ymin; j <= ymax; ++j)
 			{
                           if (i < 0 || i >= img_size || j < 0 || j >= img_size)
-                              continue;
+                            continue;
 
 			  if(sqrt((i-f1x)*(i-f1x)+(j-f1y)*(j-f1y))
 			     +sqrt((i-f2x)*(i-f2x)+(j-f2y)*(j-f2y))<2*a)
@@ -556,19 +572,19 @@ int main(int argc, char * const argv[])
 	  if (source_type==FRII)
 	    {
 	      assert(structure>=1 && structure<=3);
-	      if(structure==1)//core
+	      if(structure==1) //core
 		{
 		  fr2.reset();
 		  fr2.core_ra=ra-ra_min;
 		  fr2.core_dec=dec-dec_min;
-		  fr2.core_flux=pow(10.,i_151);
+		  fr2.core_flux=flux;
 		  fr2.redshift=redshift;
 		  fr2.cosv=cos_va;
 		}
-	      else if(structure==2)//lobe
+	      else if(structure==2) //lobe
 		{
 		  assert(lobe_cnt<2);
-		  fr2.lobe_flux[lobe_cnt]=pow(10.,i_151);
+		  fr2.lobe_flux[lobe_cnt]=flux;
 		  fr2.lobe_ra[lobe_cnt]=ra-ra_min;
 		  fr2.lobe_dec[lobe_cnt]=dec-dec_min;
 		  fr2.lobe_major_axis[lobe_cnt]=major_axis;
@@ -576,10 +592,10 @@ int main(int argc, char * const argv[])
 		  fr2.lobe_pa[lobe_cnt]=pa;
 		  ++lobe_cnt;
 		}
-	      else if(structure==3)//hotspot
+	      else if(structure==3) //hotspot
 		{
 		  assert(hotspot_cnt<2);
-		  fr2.hotspot_flux[hotspot_cnt]=pow(10.,i_151);
+		  fr2.hotspot_flux[hotspot_cnt]=flux;
 		  fr2.hotspot_ra[hotspot_cnt]=ra-ra_min;
 		  fr2.hotspot_dec[hotspot_cnt]=dec-dec_min;
 		  ++hotspot_cnt;
@@ -602,11 +618,11 @@ int main(int argc, char * const argv[])
                        * check whether fit in the simulation area
                        */
                       if (x < 0 || x >= img_size || y < 0 || y >= img_size)
-                          continue;
+                        continue;
                       if (x_h1 < 0 || x_h1 >= img_size || y_h1 < 0 || y_h1 >= img_size)
-                          continue;
+                        continue;
                       if (x_h2 < 0 || x_h2 >= img_size || y_h2 < 0 || y_h2 >= img_size)
-                          continue;
+                        continue;
 
                       /*
                        * simulate image
@@ -656,7 +672,7 @@ int main(int argc, char * const argv[])
 			  for(int j = ymin; j <= ymax; ++j)
 			    {
                               if (i < 0 || i >= img_size || j < 0 || j >= img_size)
-                                  continue;
+                                continue;
 
 			      if(sqrt((i-f11_x)*(i-f11_x)+(j-f11_y)*(j-f11_y))+
 				 sqrt((i-f21_x)*(i-f21_x)+(j-f21_y)*(j-f21_y))<2*a1/fov_asec*img_size)
@@ -694,7 +710,7 @@ int main(int argc, char * const argv[])
 			  for(int j = ymin; j <= ymax; ++j)
 			    {
                               if (i < 0 || i >= img_size || j < 0 || j >= img_size)
-                                  continue;
+                                continue;
 
 			      if(sqrt((i-f12_x)*(i-f12_x)+(j-f12_y)*(j-f12_y))+
 				 sqrt((i-f22_x)*(i-f22_x)+(j-f22_y)*(j-f22_y))<2*a2/fov_asec*img_size)
@@ -728,20 +744,20 @@ int main(int argc, char * const argv[])
            */
 	  if(source_type==FRI)
 	    {
-	      assert(structure==1||structure==2);
+	      assert(structure==1 || structure==2);
 	      if(structure==1)
 		{
 		  fr1.reset();
 		  fr1.core_ra=ra-ra_min;
 		  fr1.core_dec=dec-dec_min;
-		  fr1.core_flux=pow(10.,i_151);
+		  fr1.core_flux=flux;
 		}
 	      else if(structure==2)
 		{
 		  assert(lobe_cnt<2);
 		  fr1.lobe_ra[lobe_cnt]=ra-ra_min;
 		  fr1.lobe_dec[lobe_cnt]=dec-dec_min;
-		  fr1.lobe_flux[lobe_cnt]=pow(10.,i_151);
+		  fr1.lobe_flux[lobe_cnt]=flux;
 		  fr1.lobe_pa[lobe_cnt]=pa;
 		  fr1.lobe_major_axis[lobe_cnt]=major_axis;
 		  fr1.lobe_minor_axis[lobe_cnt]=minor_axis;
@@ -765,11 +781,11 @@ int main(int argc, char * const argv[])
                        * check whether fit in the simulation area
                        */
                       if (x < 0 || x >= img_size || y < 0 || y >= img_size)
-                          continue;
+                        continue;
                       if (x_l1 < 0 || x_l1 >= img_size || y_l1 < 0 || y_l1 >= img_size)
-                          continue;
+                        continue;
                       if (x_l2 < 0 || x_l2 >= img_size || y_l2 < 0 || y_l2 >= img_size)
-                          continue;
+                        continue;
 
                       /*
                        * simulate image
