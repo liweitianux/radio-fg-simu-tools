@@ -13,20 +13,22 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <iomanip>
 #include <limits>
 #include <cassert>
 #include <string>
 #include <vector>
+#include <memory>
 #include <cmath>
 #include <CCfits/CCfits>
 
 #include <unistd.h>  // getopt()
 
-using namespace std;
-using namespace CCfits;
+#include "matrix.h"
 
-#include "fio.h"
-using namespace blitz;
+
+using namespace std;
 
 
 const int FRI = 1;
@@ -312,12 +314,12 @@ int main(int argc, char * const argv[])
     printf("INFO: sky fov: %.1f [deg]\n", fov_deg);
 
     vector<double> freqs;
-    vector<blitz::Array<double,2> > img_vec;
+    vector<Matrix<double> > images;
     printf("INFO: frequencies [MHz]:");
     for (int i = 0; i < argc; ++i) {
         freqs.push_back(atof(argv[i]));
-        img_vec.push_back(blitz::Array<double,2>(img_size,img_size));
         printf(" %.2f", freqs.back());
+        images.push_back(Matrix<double>(img_size, img_size));
     }
     printf("\nINFO: number of frequencies: %lu\n", freqs.size());
 
@@ -461,7 +463,7 @@ int main(int argc, char * const argv[])
                         continue;
 
                     for (vector<double>::size_type k = 0; k < freqs.size(); ++k) {
-                        img_vec[k](x, y) += calc_Tb(
+                        images[k](x, y) += calc_Tb(
                             rqq_spec(rqq.flux, freqs[k]),
                             pix_area, freqs[k]);
                     }
@@ -524,7 +526,7 @@ int main(int argc, char * const argv[])
                                     for (vector<double>::size_type k = 0;
                                         k < freqs.size();
                                         ++k) {
-                                        img_vec[k](i, j) += calc_Tb(
+                                        images[k](i, j) += calc_Tb(
                                             sf_spec(sf.flux, freqs[k]),
                                             s, freqs[k]);
                                     }
@@ -533,7 +535,7 @@ int main(int argc, char * const argv[])
                                     for (vector<double>::size_type k = 0;
                                         k < freqs.size();
                                         ++k) {
-                                        img_vec[k](i, j) += calc_Tb(
+                                        images[k](i, j) += calc_Tb(
                                             sb_spec(sf.flux, freqs[k]),
                                             s, freqs[k]);
                                     }
@@ -612,15 +614,15 @@ int main(int argc, char * const argv[])
                             k < freqs.size();
                             ++k) {
                             /* core */
-                            img_vec[k](x, y) += calc_Tb(
+                            images[k](x, y) += calc_Tb(
                                 fr2_core_spec(fr2.core_flux, freqs[k]),
                                 pix_area, freqs[k]);
                             /* hotspot 1 */
-                            img_vec[k](x_h1, y_h1) += calc_Tb(
+                            images[k](x_h1, y_h1) += calc_Tb(
                                 fr2_hotspot_spec(fr2.hotspot_flux[0], freqs[k]),
                                 pix_area, freqs[k]);
                             /* hotspot 2 */
-                            img_vec[k](x_h2, y_h2) += calc_Tb(
+                            images[k](x_h2, y_h2) += calc_Tb(
                                 fr2_hotspot_spec(fr2.hotspot_flux[1], freqs[k]),
                                 pix_area, freqs[k]);
                         }
@@ -657,7 +659,7 @@ int main(int argc, char * const argv[])
                                     for (vector<double>::size_type k = 0;
                                         k < freqs.size();
                                         ++k) {
-                                        img_vec[k](i, j) += calc_Tb(
+                                        images[k](i, j) += calc_Tb(
                                             fr2_lobe_spec(fr2.lobe_flux[0], freqs[k]),
                                             s_lobe1 ,freqs[k]);
                                     }
@@ -695,7 +697,7 @@ int main(int argc, char * const argv[])
                                     for (vector<double>::size_type k = 0;
                                         k < freqs.size();
                                         ++k) {
-                                        img_vec[k](i, j) += calc_Tb(
+                                        images[k](i, j) += calc_Tb(
                                             fr2_lobe_spec(fr2.lobe_flux[1], freqs[k]),
                                             s_lobe2 ,freqs[k]);
                                     }
@@ -769,7 +771,7 @@ int main(int argc, char * const argv[])
                         for (vector<double>::size_type k = 0;
                             k < freqs.size();
                             ++k) {
-                            img_vec[k](x, y) += calc_Tb(
+                            images[k](x, y) += calc_Tb(
                                 fr1_core_spec(fr1.core_flux, freqs[k]),
                                 pix_area, freqs[k]);
                         }
@@ -803,7 +805,7 @@ int main(int argc, char * const argv[])
                                     for (vector<double>::size_type k = 0;
                                         k < freqs.size();
                                         ++k) {
-                                        img_vec[k](i, j) += calc_Tb(
+                                        images[k](i, j) += calc_Tb(
                                             fr1_lobe_spec(fr1.lobe_flux[0], freqs[k]),
                                             s_lobe1, freqs[k]);
                                     }
@@ -839,7 +841,7 @@ int main(int argc, char * const argv[])
                                     for (vector<double>::size_type k = 0;
                                         k < freqs.size();
                                         ++k) {
-                                        img_vec[k](i, j) += calc_Tb(
+                                        images[k](i, j) += calc_Tb(
                                             fr1_lobe_spec(fr1.lobe_flux[1], freqs[k]),
                                             s_lobe2, freqs[k]);
                                     }
@@ -872,14 +874,31 @@ int main(int argc, char * const argv[])
     csvout.close();
     cout << "Total simulated point sources: " << ptr_cnt_sum << endl;
 
+    /*
+     * Write simulated images to FITS files
+     */
+    long naxis = 2;
+    long naxes[] = {img_size, img_size};
+    long nelements = img_size * img_size;
+    std::unique_ptr<CCfits::FITS> pfits;
+
     for (vector<double>::size_type k = 0; k < freqs.size(); ++k) {
-        double freq = freqs[k];  // [MHz]
-        char *fname;
-        cfitsfile ff;
-        asprintf(&fname, "%s%.2f.fits", output_prefix, freq);
-        ff.create(fname);
-        ff << img_vec[k];
-        printf("INFO: saved map '%s'\n", fname);
-        free(fname);
+        std::ostringstream ss;
+        ss << output_prefix
+           << std::fixed << std::setprecision(2) << freqs[k]
+           << ".fits";
+        const std::string fname = ss.str();
+        try {
+            // "!" to overwrite existing files
+            pfits.reset(new CCfits::FITS("!"+fname, DOUBLE_IMG, naxis, naxes));
+        }
+        catch (CCfits::FITS::CantCreate) {
+            cerr << "ERROR: cannot create FITS file: " << fname << endl;
+            exit(EXIT_FAILURE);
+        }
+        long fpixel = 1;
+        pfits->pHDU().write(fpixel, nelements, images[k].array());
+        pfits->flush();
+        cout << "INFO: saved image: " << fname << endl;;
     }
 }

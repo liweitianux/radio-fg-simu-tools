@@ -7,7 +7,7 @@
 #
 
 CXX= 	g++
-CXXFLAGS= 	-Wall
+CXXFLAGS= 	-Og -Wall
 
 FIO_LIBS= 	-lfio -lcfitsio
 TRNG_LIBS= 	-ltrng4
@@ -21,8 +21,8 @@ TARGETS= 	make_ptr_map create_gps_map simulate_gps
 
 all: $(TARGETS)
 
-make_ptr_map: make_ptr_map.o
-	$(CXX) $(CXXFLAGS) $(FIO_LDFLAGS) $(FIO_LIBS) -o $@ $<
+make_ptr_map: make_ptr_map.cc
+	$(CXX) $(CXXFLAGS) -o $@ $< -lCCfits -lcfitsio
 
 create_gps_map: create_gps_map.o
 	$(CXX) $(CXXFLAGS) $(FIO_LDFLAGS) $(FIO_LIBS) -o $@ $<
