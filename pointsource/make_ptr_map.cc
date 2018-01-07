@@ -59,7 +59,7 @@ struct FRI_info {
     double redshift;
     double cosv;
 
-    void reset() {
+    void reset(void) {
         core_ra = -1;
         core_dec = -1;
         core_flux = -1;
@@ -92,7 +92,7 @@ struct FRII_info {
     double cosv;
     double redshift;
 
-    void reset() {
+    void reset(void) {
         core_ra = -1;
         core_dec = -1;
         core_flux = -1;
@@ -118,7 +118,7 @@ struct RQQ_info {
     double dec;
     double redshift;
 
-    void reset() {
+    void reset(void) {
         flux = -1;
         ra = -1;
         dec = -1;
@@ -137,7 +137,7 @@ struct SF_info {
     int type;
     double redshift;
 
-    void reset() {
+    void reset(void) {
         flux = -1;
         ra = -1;
         dec = -1;
@@ -200,16 +200,34 @@ double sb_spec(double I_151,double freqMHz)
     return pow(freqMHz/151, -0.7)*I_151;
 }
 
-// pix_area: [arcsec^2]
-double calc_Tb(double flux_in_Jy, double pix_area, double freqMHz)
+
+double rad2deg(double rad)
 {
-    const double c = 2.99792458E8;
-    const double kb = 1.38E-23;
-    double freq = freqMHz * 1e6;  // [Hz]
-    double Omegab = pix_area/(3600.*180./M_PI)/(3600.*180./M_PI);
-    double Sb = flux_in_Jy*1E-26/Omegab;
-    double result = Sb/2/freq/freq*c*c/kb;
-    return result;
+    return rad * 180.0 / M_PI;
+}
+
+double deg2rad(double deg)
+{
+    return deg * M_PI / 180.0;
+}
+
+
+/*
+ * flux -> brightness temperature [K]
+ *
+ * flux: [Jy]
+ * omega: [arcsec^2]
+ * freq: [MHz]
+ */
+double calc_Tb(double flux, double omega, double freq)
+{
+    const double c = 2.99792458e8;  // [m/s]
+    const double k_B = 1.38e-23;
+    const double arcsec2rad = M_PI / 180.0 / 3600.0;
+    freq *= 1e6;  // [MHz]->[Hz]
+    omega *= (arcsec2rad*arcsec2rad);
+    double Sb = flux*1e-26 / omega;
+    return 0.5 * Sb * c*c / (freq*freq * k_B);
 }
 
 
@@ -339,20 +357,20 @@ int main(int argc, char * const argv[])
          sftype,      /* 4. */
          agntype,     /* 5. */
          structure;   /* 6. */
-    double ra,                /* 7. */
-           dec,               /* 8. */
-           distance,          /* 9. */
+    double ra,                /* 7. [deg] */
+           dec,               /* 8. [deg] */
+           distance,          /* 9. [cMpc]*/
            redshift,          /* 10. */
-           pa,                /* 11. */
-           major_axis,        /* 12. */
-           minor_axis,        /* 13. */
-           i_151,             /* 14. */
-           i_610,             /* 15. */
-           i_1400,            /* 16. */
-           i_4860,            /* 17. */
-           i_18000,           /* 18. */
-           m_hi,              /* 19. */
-           cos_va;            /* 20. */
+           pa,                /* 11. [rad] */
+           major_axis,        /* 12. [arcsec] */
+           minor_axis,        /* 13. [arcsec] */
+           i_151,             /* 14. log10[Jy] */
+           i_610,             /* 15. log10[Jy] */
+           i_1400,            /* 16. log10[Jy] */
+           i_4860,            /* 17. log10[Jy] */
+           i_18000,           /* 18. log10[Jy] */
+           m_hi,              /* 19. log10[Msun] */
+           cos_va;            /* 20. cos(viewing_angle) */
     double flux;  // [Jy]
 
     ifstream input_list(dbfiles_list);
@@ -361,7 +379,7 @@ int main(int argc, char * const argv[])
            << "# redshift\n"
            << "# x, y: (core) position on the simulated image\n"
            << "# flux: (core) flux @151[MHz]; unit: [Jy]\n"
-           << "# major, minor, pa: (core) major and minor axes, and position angle (type: SF/SB)\n"
+           << "# major, minor, pa: (core) major and minor axes (unit: pixel), and position angle (unit: deg) (type: SF/SB)\n"
            << "# x_l1, y_l1, flux_l1, major_l1, minor_l1, pa_l1: lobe1 properties (type: FR-I/FR-II)\n"
            << "# x_l2, y_l2, flux_l2, major_l2, minor_l2, pa_l2: lobe2 properties (type: FR-I/FR-II)\n"
            << "# x_h1, y_h1, flux_h1: hotspot1 properties (type: FR-II)\n"
@@ -442,7 +460,7 @@ int main(int argc, char * const argv[])
                 source_type = FRII;
             else {
                 cerr << "SF_type: " << sftype
-                    << ", AGN_type: " << agntype << endl;
+                     << ", AGN_type: " << agntype << endl;
                 assert(0);
             }
 
@@ -462,7 +480,9 @@ int main(int argc, char * const argv[])
                     if (x < 0 || x >= img_size || y < 0 || y >= img_size)
                         continue;
 
-                    for (vector<double>::size_type k = 0; k < freqs.size(); ++k) {
+                    for (vector<double>::size_type k = 0;
+                         k < freqs.size();
+                         ++k) {
                         images[k](x, y) += calc_Tb(
                             rqq_spec(rqq.flux, freqs[k]),
                             pix_area, freqs[k]);
@@ -478,8 +498,8 @@ int main(int argc, char * const argv[])
             * Star-formation / starburst galaxies
             */
             if (source_type == SF || source_type == SB) {
-                sf.reset();
                 assert(structure == 4);
+                sf.reset();
                 sf.m_hi = m_hi;
                 sf.ra = ra - ra_min;
                 sf.dec = dec - dec_min;
@@ -524,8 +544,8 @@ int main(int argc, char * const argv[])
                                 if (sf.type == 1) {
                                     /* star-forming */
                                     for (vector<double>::size_type k = 0;
-                                        k < freqs.size();
-                                        ++k) {
+                                         k < freqs.size();
+                                         ++k) {
                                         images[k](i, j) += calc_Tb(
                                             sf_spec(sf.flux, freqs[k]),
                                             s, freqs[k]);
@@ -533,8 +553,8 @@ int main(int argc, char * const argv[])
                                 } else if (sf.type==2) {
                                     /* starburst */
                                     for (vector<double>::size_type k = 0;
-                                        k < freqs.size();
-                                        ++k) {
+                                         k < freqs.size();
+                                         ++k) {
                                         images[k](i, j) += calc_Tb(
                                             sb_spec(sf.flux, freqs[k]),
                                             s, freqs[k]);
@@ -549,7 +569,8 @@ int main(int argc, char * const argv[])
                     ptr_cnt++;
                     csvout << source_type << "," << redshift << ","
                            << x << "," << y << "," << sf.flux << ","
-                           << a*2 << "," << b*2 << "," << pa << endl;
+                           << a*2 << "," << b*2 << ","
+                           << rad2deg(pa) << endl;
                 }
             }
 
@@ -611,8 +632,8 @@ int main(int argc, char * const argv[])
                         * simulate image
                         */
                         for (vector<double>::size_type k = 0;
-                            k < freqs.size();
-                            ++k) {
+                             k < freqs.size();
+                             ++k) {
                             /* core */
                             images[k](x, y) += calc_Tb(
                                 fr2_core_spec(fr2.core_flux, freqs[k]),
@@ -657,8 +678,8 @@ int main(int argc, char * const argv[])
                                     sqrt((i-f21_x)*(i-f21_x)+(j-f21_y)*(j-f21_y))<2*a1/fov_asec*img_size)
                                   {
                                     for (vector<double>::size_type k = 0;
-                                        k < freqs.size();
-                                        ++k) {
+                                         k < freqs.size();
+                                         ++k) {
                                         images[k](i, j) += calc_Tb(
                                             fr2_lobe_spec(fr2.lobe_flux[0], freqs[k]),
                                             s_lobe1 ,freqs[k]);
@@ -695,8 +716,8 @@ int main(int argc, char * const argv[])
                                     sqrt((i-f22_x)*(i-f22_x)+(j-f22_y)*(j-f22_y))<2*a2/fov_asec*img_size)
                                   {
                                     for (vector<double>::size_type k = 0;
-                                        k < freqs.size();
-                                        ++k) {
+                                         k < freqs.size();
+                                         ++k) {
                                         images[k](i, j) += calc_Tb(
                                             fr2_lobe_spec(fr2.lobe_flux[1], freqs[k]),
                                             s_lobe2 ,freqs[k]);
@@ -708,13 +729,20 @@ int main(int argc, char * const argv[])
                         ptr_cnt++;
                         // XXX: fix a1, a2, b1, b2 -> in units of pixels!
                         csvout << source_type << "," << redshift << ","
-                               << x << "," << y << "," << fr2.core_flux << "," << "," << ","
-                               << x_l1 << "," << y_l1 << "," << fr2.lobe_flux[0] << ","
-                               << a1*2 << "," << b1*2 << "," << fr2.lobe_pa[0] << ","  /* lobe 1 */
-                               << x_l2 << "," << y_l2 << "," << fr2.lobe_flux[1] << ","
-                               << a2*2 << "," << b2*2 << "," << fr2.lobe_pa[1] << ","  /* lobe 2 */
-                               << x_h1 << "," << y_h1 << "," << fr2.hotspot_flux[0] << ","
-                               << x_h2 << "," << y_h2 << "," << fr2.hotspot_flux[1]
+                               << x << "," << y << ","
+                               << fr2.core_flux << "," << "," << ","
+                               << x_l1 << "," << y_l1 << ","
+                               << fr2.lobe_flux[0] << ","
+                               << a1*2 << "," << b1*2 << ","
+                               << rad2deg(fr2.lobe_pa[0]) << ","  /* lobe 1 */
+                               << x_l2 << "," << y_l2 << ","
+                               << fr2.lobe_flux[1] << ","
+                               << a2*2 << "," << b2*2 << ","
+                               << rad2deg(fr2.lobe_pa[1]) << ","  /* lobe 2 */
+                               << x_h1 << "," << y_h1 << ","
+                               << fr2.hotspot_flux[0] << ","
+                               << x_h2 << "," << y_h2 << ","
+                               << fr2.hotspot_flux[1]
                                << endl;
                         /* END: simulate image */
                     }
@@ -769,8 +797,8 @@ int main(int argc, char * const argv[])
                         */
                         /* core */
                         for (vector<double>::size_type k = 0;
-                            k < freqs.size();
-                            ++k) {
+                             k < freqs.size();
+                             ++k) {
                             images[k](x, y) += calc_Tb(
                                 fr1_core_spec(fr1.core_flux, freqs[k]),
                                 pix_area, freqs[k]);
@@ -803,8 +831,8 @@ int main(int argc, char * const argv[])
                                     sqrt((i-f21_x)*(i-f21_x)+(j-f21_y)*(j-f21_y))<2*a1/fov_asec*img_size)
                                   {
                                     for (vector<double>::size_type k = 0;
-                                        k < freqs.size();
-                                        ++k) {
+                                         k < freqs.size();
+                                         ++k) {
                                         images[k](i, j) += calc_Tb(
                                             fr1_lobe_spec(fr1.lobe_flux[0], freqs[k]),
                                             s_lobe1, freqs[k]);
@@ -839,8 +867,8 @@ int main(int argc, char * const argv[])
                                     sqrt((i-f22_x)*(i-f22_x)+(j-f22_y)*(j-f22_y))<2*a2/fov_asec*img_size)
                                   {
                                     for (vector<double>::size_type k = 0;
-                                        k < freqs.size();
-                                        ++k) {
+                                         k < freqs.size();
+                                         ++k) {
                                         images[k](i, j) += calc_Tb(
                                             fr1_lobe_spec(fr1.lobe_flux[1], freqs[k]),
                                             s_lobe2, freqs[k]);
@@ -852,11 +880,16 @@ int main(int argc, char * const argv[])
                         ptr_cnt++;
                         // XXX: fix a1, a2, b1, b2 -> pixel units
                         csvout << source_type << "," << redshift << ","
-                               << x << "," << y << "," << fr1.core_flux << "," << "," << ","
-                               << x_l1 << "," << y_l1 << "," << fr1.lobe_flux[0] << ","
-                               << a1*2 << "," << b1*2 << "," << fr1.lobe_pa[0] << ","  /* lobe 1 */
-                               << x_l2 << "," << y_l2 << "," << fr1.lobe_flux[1] << ","
-                               << a2*2 << "," << b2*2 << "," << fr1.lobe_pa[1]  /* lobe 2 */
+                               << x << "," << y << ","
+                               << fr1.core_flux << "," << "," << ","
+                               << x_l1 << "," << y_l1 << ","
+                               << fr1.lobe_flux[0] << ","
+                               << a1*2 << "," << b1*2 << ","
+                               << rad2deg(fr1.lobe_pa[0]) << ","  /* lobe 1 */
+                               << x_l2 << "," << y_l2 << ","
+                               << fr1.lobe_flux[1] << ","
+                               << a2*2 << "," << b2*2 << ","
+                               << rad2deg(fr1.lobe_pa[1])  /* lobe 2 */
                                << endl;
                         /* END: simulate image */
                     }
