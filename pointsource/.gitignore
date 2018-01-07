@@ -3,6 +3,7 @@ create_gps_map
 make_ptr_map
 random_test
 simulate_gps
+test_matrix
 
 # link
 fio
