@@ -231,6 +231,32 @@ double calc_Tb(double flux, double omega, double freq)
 }
 
 
+/*
+ * Determine whether the point (x, y) is inside the ellipse
+ * defined with following properties:
+ *    xc, yc : ellipse center
+ *    a : semi-major axis
+ *    b : semi-minor axis
+ *    pa : position angle
+ *    c = sqrt(a*a - b*b)
+ *    f1x = xc + c*sin(pa)
+ *    f1y = yc + c*cos(pa)
+ *    f2x = xc - c*sin(pa)
+ *    f2y = yc - c*cos(pa)
+ *
+ * XXX: why this calculation method?
+ */
+inline bool in_ellipse(int x, int y,
+                       double f1x, double f1y,
+                       double f2x, double f2y,
+                       double a)
+{
+    double t1 = sqrt((x-f1x)*(x-f1x) + (y-f1y)*(y-f1y));
+    double t2 = sqrt((x-f2x)*(x-f2x) + (y-f2y)*(y-f2y));
+    return (t1+t2 < 2*a);
+}
+
+
 void usage(const char *name) {
     fprintf(stderr, "Usage: %s [ -o output_prefix ] "
             "[ -f fov ] [ -s image_size ] [ -x reduction_factor ] "
@@ -519,28 +545,26 @@ int main(int argc, char * const argv[])
 
                     double a = 0.5 * sf.major_axis / pix_size;
                     double b = 0.5 * sf.minor_axis / pix_size;
-                    double c = sqrt(a*a-b*b);
+                    double c = sqrt(a*a - b*b);
                     double f1x = x + c*sin(pa);
                     double f1y = y + c*cos(pa);
                     double f2x = x - c*sin(pa);
                     double f2y = y - c*cos(pa);
 
-                    double s = M_PI*major_axis*minor_axis/4;  // [arcsec^2]
+                    double s = a*b * M_PI*pix_area;  // [arcsec^2]
                     if (s < pix_area)
                         s = pix_area;
 
-                    int xmin = (int)round(x - a);
-                    int xmax = (int)round(x + a);
-                    int ymin = (int)round(y - a);
-                    int ymax = (int)round(y + a);
+                    int xmin = (int) round(x - a);
+                    int xmax = (int) round(x + a);
+                    int ymin = (int) round(y - a);
+                    int ymax = (int) round(y + a);
                     for (int i = xmin; i <= xmax; ++i) {
                         for (int j = ymin; j <= ymax; ++j) {
                             if (i < 0 || i >= img_size || j < 0 || j >= img_size)
                                 continue;
 
-                            if (sqrt((i-f1x)*(i-f1x)+(j-f1y)*(j-f1y))
-                                +sqrt((i-f2x)*(i-f2x)+(j-f2y)*(j-f2y))<2*a) {
-                                assert(sf.type);
+                            if (in_ellipse(i, j, f1x, f1y, f2x, f2y, a)) {
                                 if (sf.type == 1) {
                                     /* star-forming */
                                     for (vector<double>::size_type k = 0;
@@ -650,33 +674,31 @@ int main(int argc, char * const argv[])
 
                         /* lobe 1 */
                         int xmin, xmax, ymin, ymax;
-                        double x_l1 = (fr2.lobe_ra[0]/pix_deg);
-                        double y_l1 = (fr2.lobe_dec[0]/pix_deg);
+                        double x_l1 = fr2.lobe_ra[0] / pix_deg;
+                        double y_l1 = fr2.lobe_dec[0] / pix_deg;
 
-                        double a1 = fr2.lobe_major_axis[0]/2;
-                        double b1 = fr2.lobe_minor_axis[0]/2;
-                        double c1 = sqrt(a1*a1-b1*b1);
-                        double s_lobe1 = M_PI*a1*b1;
+                        double a1 = 0.5 * fr2.lobe_major_axis[0] / pix_size;
+                        double b1 = 0.5 * fr2.lobe_minor_axis[0] / pix_size;
+                        double c1 = sqrt(a1*a1 - b1*b1);
+                        double s_lobe1 = a1*b1 * M_PI*pix_area;
                         if (s_lobe1 < pix_area)
                             s_lobe1 = pix_area;
 
-                        double f11_x = x_l1+c1*sin(fr2.lobe_pa[0])/pix_size;
-                        double f11_y = y_l1+c1*cos(fr2.lobe_pa[0])/pix_size;
-                        double f21_x = x_l1-c1*sin(fr2.lobe_pa[0])/pix_size;
-                        double f21_y = y_l1-c1*cos(fr2.lobe_pa[0])/pix_size;
+                        double f11x = x_l1 + c1*sin(fr2.lobe_pa[0]);
+                        double f11y = y_l1 + c1*cos(fr2.lobe_pa[0]);
+                        double f21x = x_l1 - c1*sin(fr2.lobe_pa[0]);
+                        double f21y = y_l1 - c1*cos(fr2.lobe_pa[0]);
 
-                        xmin = (int)round(x_l1 - a1 / pix_size);
-                        xmax = (int)round(x_l1 + a1 / pix_size);
-                        ymin = (int)round(y_l1 - a1 / pix_size);
-                        ymax = (int)round(y_l1 + a1 / pix_size);
+                        xmin = (int) round(x_l1 - a1);
+                        xmax = (int) round(x_l1 + a1);
+                        ymin = (int) round(y_l1 - a1);
+                        ymax = (int) round(y_l1 + a1);
                         for (int i = xmin; i <= xmax; ++i) {
                             for (int j = ymin; j <= ymax; ++j) {
                                 if (i < 0 || i >= img_size || j < 0 || j >= img_size)
                                     continue;
 
-                                if (sqrt((i-f11_x)*(i-f11_x)+(j-f11_y)*(j-f11_y))+
-                                    sqrt((i-f21_x)*(i-f21_x)+(j-f21_y)*(j-f21_y))<2*a1/fov_asec*img_size)
-                                  {
+                                if (in_ellipse(i, j, f11x, f11y, f21x, f21y, a1)) {
                                     for (vector<double>::size_type k = 0;
                                          k < freqs.size();
                                          ++k) {
@@ -689,32 +711,31 @@ int main(int argc, char * const argv[])
                         }
 
                         /* lobe 2 */
-                        double x_l2 = (fr2.lobe_ra[1]/pix_deg);
-                        double y_l2 = (fr2.lobe_dec[1]/pix_deg);
-                        double a2 = fr2.lobe_major_axis[1]/2;
-                        double b2 = fr2.lobe_minor_axis[1]/2;
-                        double c2 = sqrt(a2*a2-b2*b2);
-                        double s_lobe2 = M_PI*a2*b2;
+                        double x_l2 = fr2.lobe_ra[1] / pix_deg;
+                        double y_l2 = fr2.lobe_dec[1] / pix_deg;
+
+                        double a2 = 0.5 * fr2.lobe_major_axis[1] / pix_size;
+                        double b2 = 0.5 * fr2.lobe_minor_axis[1] / pix_size;
+                        double c2 = sqrt(a2*a2 - b2*b2);
+                        double s_lobe2 = a2*b2 * M_PI*pix_area;
                         if (s_lobe2 < pix_area)
                             s_lobe2 = pix_area;
 
-                        double f12_x = x_l2+c2*sin(fr2.lobe_pa[1])/pix_size;
-                        double f12_y = y_l2+c2*cos(fr2.lobe_pa[1])/pix_size;
-                        double f22_x = x_l2-c2*sin(fr2.lobe_pa[1])/pix_size;
-                        double f22_y = y_l2-c2*cos(fr2.lobe_pa[1])/pix_size;
+                        double f12x = x_l2 + c2*sin(fr2.lobe_pa[1]);
+                        double f12y = y_l2 + c2*cos(fr2.lobe_pa[1]);
+                        double f22x = x_l2 - c2*sin(fr2.lobe_pa[1]);
+                        double f22y = y_l2 - c2*cos(fr2.lobe_pa[1]);
 
-                        xmin = (int)round(x_l2 - a2 / pix_size);
-                        xmax = (int)round(x_l2 + a2 / pix_size);
-                        ymin = (int)round(y_l2 - a2 / pix_size);
-                        ymax = (int)round(y_l2 + a2 / pix_size);
+                        xmin = (int) round(x_l2 - a2);
+                        xmax = (int) round(x_l2 + a2);
+                        ymin = (int) round(y_l2 - a2);
+                        ymax = (int) round(y_l2 + a2);
                         for (int i = xmin; i <= xmax; ++i) {
                             for (int j = ymin; j <= ymax; ++j) {
                                 if (i < 0 || i >= img_size || j < 0 || j >= img_size)
                                     continue;
 
-                                if (sqrt((i-f12_x)*(i-f12_x)+(j-f12_y)*(j-f12_y))+
-                                    sqrt((i-f22_x)*(i-f22_x)+(j-f22_y)*(j-f22_y))<2*a2/fov_asec*img_size)
-                                  {
+                                if (in_ellipse(i, j, f12x, f12y, f22x, f22y, a2)) {
                                     for (vector<double>::size_type k = 0;
                                          k < freqs.size();
                                          ++k) {
@@ -727,7 +748,6 @@ int main(int argc, char * const argv[])
                         }
 
                         ptr_cnt++;
-                        // XXX: fix a1, a2, b1, b2 -> in units of pixels!
                         csvout << source_type << "," << redshift << ","
                                << x << "," << y << ","
                                << fr2.core_flux << "," << "," << ","
@@ -774,14 +794,14 @@ int main(int argc, char * const argv[])
                         * all structures are read in
                         */
                         /* core */
-                        int x = (int)round(fr1.core_ra/pix_deg);
-                        int y = (int)round(fr1.core_dec/pix_deg);
+                        int x = (int) round(fr1.core_ra / pix_deg);
+                        int y = (int) round(fr1.core_dec / pix_deg);
                         /* lobe 1 */
-                        double x_l1 = (fr1.lobe_ra[0]/pix_deg);
-                        double y_l1 = (fr1.lobe_dec[0]/pix_deg);
+                        double x_l1 = fr1.lobe_ra[0] / pix_deg;
+                        double y_l1 = fr1.lobe_dec[0] / pix_deg;
                         /* lobe 2 */
-                        double x_l2 = (fr1.lobe_ra[1]/pix_deg);
-                        double y_l2 = (fr1.lobe_dec[1]/pix_deg);
+                        double x_l2 = fr1.lobe_ra[1] / pix_deg;
+                        double y_l2 = fr1.lobe_dec[1] / pix_deg;
                         /*
                         * check whether fit in the simulation area
                         */
@@ -806,30 +826,28 @@ int main(int argc, char * const argv[])
 
                         /* lobe 1 */
                         int xmin, xmax, ymin, ymax;
-                        double a1 = fr1.lobe_major_axis[0]/2;
-                        double b1 = fr1.lobe_minor_axis[0]/2;
-                        double c1 = sqrt(a1*a1-b1*b1);
-                        double s_lobe1 = M_PI*a1*b1;
+                        double a1 = 0.5 * fr1.lobe_major_axis[0] / pix_size;
+                        double b1 = 0.5 * fr1.lobe_minor_axis[0] / pix_size;
+                        double c1 = sqrt(a1*a1 - b1*b1);
+                        double s_lobe1 = a1*b1 * M_PI*pix_area;
                         if (s_lobe1 < pix_area)
                             s_lobe1 = pix_area;
 
-                        double f11_x = x_l1+c1*sin(fr1.lobe_pa[0])/pix_size;
-                        double f11_y = y_l1+c1*cos(fr1.lobe_pa[0])/pix_size;
-                        double f21_x = x_l1-c1*sin(fr1.lobe_pa[0])/pix_size;
-                        double f21_y = y_l1-c1*cos(fr1.lobe_pa[0])/pix_size;
+                        double f11x = x_l1 + c1*sin(fr1.lobe_pa[0]);
+                        double f11y = y_l1 + c1*cos(fr1.lobe_pa[0]);
+                        double f21x = x_l1 - c1*sin(fr1.lobe_pa[0]);
+                        double f21y = y_l1 - c1*cos(fr1.lobe_pa[0]);
 
-                        xmin = (int)round(x_l1 - a1 / pix_size);
-                        xmax = (int)round(x_l1 + a1 / pix_size);
-                        ymin = (int)round(y_l1 - a1 / pix_size);
-                        ymax = (int)round(y_l1 + a1 / pix_size);
+                        xmin = (int) round(x_l1 - a1);
+                        xmax = (int) round(x_l1 + a1);
+                        ymin = (int) round(y_l1 - a1);
+                        ymax = (int) round(y_l1 + a1);
                         for (int i = xmin; i <= xmax; ++i) {
                             for (int j = ymin; j <= ymax; ++j) {
                                 if (i < 0 || i >= img_size || j < 0 || j >= img_size)
                                     continue;
 
-                                if (sqrt((i-f11_x)*(i-f11_x)+(j-f11_y)*(j-f11_y))+
-                                    sqrt((i-f21_x)*(i-f21_x)+(j-f21_y)*(j-f21_y))<2*a1/fov_asec*img_size)
-                                  {
+                                if (in_ellipse(i, j, f11x, f11y, f21x, f21y, a1)) {
                                     for (vector<double>::size_type k = 0;
                                          k < freqs.size();
                                          ++k) {
@@ -842,30 +860,28 @@ int main(int argc, char * const argv[])
                         }
 
                         /* lobe 2 */
-                        double a2 = fr1.lobe_major_axis[1]/2;
-                        double b2 = fr1.lobe_minor_axis[1]/2;
-                        double c2 = sqrt(a2*a2-b2*b2);
-                        double s_lobe2 = M_PI*a2*b2;
+                        double a2 = 0.5 * fr1.lobe_major_axis[1] / pix_size;
+                        double b2 = 0.5 * fr1.lobe_minor_axis[1] / pix_size;
+                        double c2 = sqrt(a2*a2 - b2*b2);
+                        double s_lobe2 = a2*b2 * M_PI*pix_area;
                         if (s_lobe2 < pix_area)
-                          s_lobe2 = pix_area;
+                            s_lobe2 = pix_area;
 
-                        double f12_x = x_l2+c2*sin(fr1.lobe_pa[1])/pix_size;
-                        double f12_y = y_l2+c2*cos(fr1.lobe_pa[1])/pix_size;
-                        double f22_x = x_l2-c2*sin(fr1.lobe_pa[1])/pix_size;
-                        double f22_y = y_l2-c2*cos(fr1.lobe_pa[1])/pix_size;
+                        double f12x = x_l2 + c2*sin(fr1.lobe_pa[1]);
+                        double f12y = y_l2 + c2*cos(fr1.lobe_pa[1]);
+                        double f22x = x_l2 - c2*sin(fr1.lobe_pa[1]);
+                        double f22y = y_l2 - c2*cos(fr1.lobe_pa[1]);
 
-                        xmin = (int)round(x_l2 - a2 / pix_size);
-                        xmax = (int)round(x_l2 + a2 / pix_size);
-                        ymin = (int)round(y_l2 - a2 / pix_size);
-                        ymax = (int)round(y_l2 + a2 / pix_size);
+                        xmin = (int) round(x_l2 - a2);
+                        xmax = (int) round(x_l2 + a2);
+                        ymin = (int) round(y_l2 - a2);
+                        ymax = (int) round(y_l2 + a2);
                         for (int i = xmin; i <= xmax; ++i) {
                             for (int j = ymin; j <= ymax; ++j) {
                                 if (i < 0 || i >= img_size || j < 0 || j >= img_size)
                                     continue;
 
-                                if (sqrt((i-f12_x)*(i-f12_x)+(j-f12_y)*(j-f12_y))+
-                                    sqrt((i-f22_x)*(i-f22_x)+(j-f22_y)*(j-f22_y))<2*a2/fov_asec*img_size)
-                                  {
+                                if (in_ellipse(i, j, f12x, f12y, f22x, f22y, a2)) {
                                     for (vector<double>::size_type k = 0;
                                          k < freqs.size();
                                          ++k) {
@@ -878,7 +894,6 @@ int main(int argc, char * const argv[])
                         }
 
                         ptr_cnt++;
-                        // XXX: fix a1, a2, b1, b2 -> pixel units
                         csvout << source_type << "," << redshift << ","
                                << x << "," << y << ","
                                << fr1.core_flux << "," << "," << ","
