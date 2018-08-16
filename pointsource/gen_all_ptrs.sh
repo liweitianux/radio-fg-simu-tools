@@ -1,6 +1,6 @@
 #!/bin/sh
 
-TOOLS_DIR="./tools"
+TOOLS_DIR=$(dirname "$0")
 
 if [ $# -lt 1 ]; then
     echo "Usage:"
@@ -21,5 +21,5 @@ for i in $@; do
 done
 
 echo "Creating ptr maps ..."
-${TOOLS_DIR}/make_map query_results.list $@ ptr_
+${TOOLS_DIR}/make_ptr_map wilman2008_db.list $@ ptr_
 
