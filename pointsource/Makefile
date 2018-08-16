@@ -1,23 +1,23 @@
 #
-# Makefile for points tools
+# Makefile for pointsource simulation tools
 #
 # Aaron LI
 # 2015/04/15
-# Updated: 2017-09-04
 #
 
-CXX= 	g++
-CXXFLAGS= 	-Og -Wall
+CXX=		g++
+CXXFLAGS=	-Og -Wall
 
-FIO_LIBS= 	-lfio -lcfitsio
-TRNG_LIBS= 	-ltrng4
+FIO_LIBS=	-lfio -lcfitsio
+TRNG_LIBS=	-ltrng4
 
-FIO_INC=	-I./fio/include
-FIO_LIBS= 	-L./fio/lib -lfio -lcfitsio
-FIO_LDFLAGS=	-Wl,-rpath='$$ORIGIN/fio/lib'
+FIO_PATH=	../fio
+FIO_INC=	-I$(FIO_PATH)/include
+FIO_LIBS=	-L$(FIO_PATH)/lib -lfio -lcfitsio
+FIO_LDFLAGS=	-Wl,-rpath='$$ORIGIN/$(FIO_PATH)/lib'
 
-TARGETS= 	make_ptr_map create_gps_map simulate_gps
-#TARGETS+= 	simulate_gps_trng
+TARGETS=	make_ptr_map create_gps_map simulate_gps
+#TARGETS+=	simulate_gps_trng
 
 all: $(TARGETS)
 
