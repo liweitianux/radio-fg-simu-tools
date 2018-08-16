@@ -40,7 +40,7 @@ public:
     :z_max(22.01),z_min(.01),delta_z(.001)
   {
     E_table.resize((z_max-z_min)/delta_z);
-    for(int i=0;i<E_table.size();++i)
+    for(size_t i=0;i<E_table.size();++i)
       {
 	double z=z_min+i*delta_z;
 	E_table[i]=adapt_trapezoid(E1,0.,z,1E-3);
