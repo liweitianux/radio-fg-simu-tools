@@ -6,15 +6,16 @@
 # 2017-06-17
 #
 
-CXX= 	g++
-CXXFLAGS= 	-Wall
+CXX=		g++
+CXXFLAGS=	-Wall
 
-FIO_INC= 	-I../fio/include
-FIO_LIBS= 	-L../fio/lib -lfio -lcfitsio -lblitz
-FIO_LDFLAGS=	-Wl,-rpath='$$ORIGIN/../fio/lib'
+FIO_PATH=	../../fio
+FIO_INC=	-I$(FIO_PATH)/include
+FIO_LIBS=	-L$(FIO_PATH)/lib -lfio -lcfitsio -lblitz
+FIO_LDFLAGS=	-Wl,-rpath='$$ORIGIN/$(FIO_PATH)/lib'
 
 
-TARGETS= 	gen_2d_img2048 gen_2d_img_cut gen_2d_img_cut2 calc_total_flux
+TARGETS=	gen_2d_img2048 gen_2d_img_cut gen_2d_img_cut2 calc_total_flux
 
 all: $(TARGETS)
 
